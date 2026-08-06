@@ -132,10 +132,7 @@ input {
   place-items: center;
   overflow: hidden;
   padding: max(1rem, env(safe-area-inset-top)) 1rem max(1rem, env(safe-area-inset-bottom));
-  background:
-    linear-gradient(180deg, rgba(3, 9, 15, 0.08) 0%, rgba(3, 7, 11, 0.84) 68%, #03070b 100%),
-    radial-gradient(circle at 50% 18%, rgba(68, 104, 132, 0.28), transparent 32rem),
-    linear-gradient(145deg, #06111b 0%, #071018 48%, #020508 100%);
+  background: #020508;
   color: #f4f1e8;
 }
 
@@ -144,8 +141,8 @@ input {
   inset: 0;
   z-index: 1;
   background:
-    radial-gradient(circle at 50% 78%, rgba(255, 123, 38, 0.2), transparent 16rem),
-    linear-gradient(180deg, rgba(3, 7, 11, 0.02), rgba(3, 7, 11, 0.54));
+    radial-gradient(circle at 50% 80%, rgba(255, 123, 38, 0.18), transparent 14rem),
+    linear-gradient(180deg, rgba(2, 5, 8, 0.04), rgba(2, 5, 8, 0.18) 42%, rgba(2, 5, 8, 0.72));
   content: "";
   pointer-events: none;
 }
@@ -169,24 +166,23 @@ input {
 
 .auth-sky {
   position: absolute;
-  inset: -20vh 0 -18vh;
+  inset: 0;
   z-index: 0;
   overflow: hidden;
-  animation: auth-scene-pan 3.2s cubic-bezier(0.18, 0.82, 0.24, 1) forwards;
-  transform: translate3d(0, 18vh, 0) scale(1.05);
-  transform-origin: 50% 78%;
-  will-change: transform;
+  background:
+    linear-gradient(180deg, rgba(2, 5, 8, 0.04), rgba(2, 5, 8, 0.18) 46%, rgba(2, 5, 8, 0.58)),
+    url("/auth/runhold-login-bg.png");
+  background-position: 50% 92%, 50% 92%;
+  background-repeat: no-repeat;
+  background-size: cover, auto 142%;
+  animation: auth-scene-pan 3s cubic-bezier(0.16, 0.84, 0.22, 1) forwards;
+  filter: saturate(1.05) contrast(1.04);
+  will-change: background-position, filter;
 }
 
 .auth-sky::before,
 .auth-sky::after {
-  position: absolute;
-  inset: auto -12vw 0;
-  height: 32vh;
-  background:
-    linear-gradient(135deg, transparent 0 39%, rgba(3, 7, 9, 0.9) 40% 61%, transparent 62%) 0 100% / 6rem 100% repeat-x,
-    linear-gradient(180deg, transparent, rgba(2, 5, 8, 0.98));
-  content: "";
+  display: none;
 }
 
 .auth-sky::before {
@@ -201,26 +197,12 @@ input {
 }
 
 .auth-moon {
-  position: absolute;
-  top: 9vh;
-  left: 50%;
-  width: clamp(7.5rem, 34vw, 10.5rem);
-  aspect-ratio: 1;
-  border-radius: 999px;
-  background:
-    radial-gradient(circle at 34% 32%, rgba(60, 58, 52, 0.34) 0 8%, transparent 9%),
-    radial-gradient(circle at 62% 48%, rgba(60, 58, 52, 0.28) 0 12%, transparent 13%),
-    #d5c8ad;
-  box-shadow: 0 0 5rem rgba(213, 200, 173, 0.26);
-  opacity: 0.76;
-  transform: translateX(-50%);
+  display: none;
 }
 
 .auth-tree,
 .auth-watchtower {
-  position: absolute;
-  bottom: 14vh;
-  filter: drop-shadow(0 1rem 2rem rgba(0, 0, 0, 0.55));
+  display: none;
 }
 
 .auth-tree {
@@ -282,12 +264,7 @@ input {
 }
 
 .auth-campfire {
-  position: absolute;
-  bottom: 17vh;
-  left: 11vw;
-  width: 6rem;
-  height: 6rem;
-  opacity: 0.95;
+  display: none;
 }
 
 .auth-campfire::before {
@@ -337,20 +314,20 @@ input {
   border: 1px solid rgba(221, 232, 225, 0.16);
   border-radius: 1rem;
   background:
-    linear-gradient(180deg, rgba(16, 26, 34, 0.9), rgba(7, 11, 15, 0.92)),
-    rgba(8, 12, 16, 0.86);
+    linear-gradient(180deg, rgba(14, 24, 31, 0.88), rgba(5, 9, 13, 0.92)),
+    rgba(8, 12, 16, 0.82);
   padding: 1.45rem;
   box-shadow:
     0 1.2rem 4rem rgba(0, 0, 0, 0.46),
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(12px);
+  backdrop-filter: blur(14px);
   opacity: 0;
   pointer-events: none;
   transform: translate3d(0, 1.6rem, 0) scale(0.98);
 }
 
 .auth-card-ready {
-  animation: auth-card-reveal 780ms cubic-bezier(0.2, 0.86, 0.28, 1) forwards;
+  animation: auth-card-reveal 820ms cubic-bezier(0.2, 0.86, 0.28, 1) forwards;
   pointer-events: auto;
 }
 
@@ -559,16 +536,16 @@ input {
 
 @keyframes auth-scene-pan {
   0% {
-    filter: brightness(1.15);
-    transform: translate3d(0, 20vh, 0) scale(1.08);
+    background-position: 50% 100%, 50% 100%;
+    filter: brightness(1.2) saturate(1.12) contrast(1.08);
   }
-  58% {
-    filter: brightness(1.02);
-    transform: translate3d(0, 5vh, 0) scale(1.045);
+  54% {
+    background-position: 50% 58%, 50% 58%;
+    filter: brightness(1.02) saturate(1.08) contrast(1.05);
   }
   100% {
-    filter: brightness(0.92);
-    transform: translate3d(0, 0, 0) scale(1);
+    background-position: 50% 22%, 50% 22%;
+    filter: brightness(0.82) saturate(1.02) contrast(1.03);
   }
 }
 
@@ -610,30 +587,7 @@ input {
   }
 
   .auth-sky {
-    inset: -24vh 0 -20vh;
-    transform-origin: 42% 82%;
-  }
-
-  .auth-watchtower {
-    right: -0.8rem;
-    bottom: 22vh;
-    opacity: 0.5;
-    transform: scale(0.86);
-  }
-
-  .auth-tree-left {
-    left: -3.2rem;
-  }
-
-  .auth-tree-right {
-    right: -3.6rem;
-  }
-
-  .auth-campfire {
-    bottom: 18vh;
-    left: 8vw;
-    width: 6.8rem;
-    height: 6.8rem;
+    background-size: cover, auto 152%;
   }
 
   .auth-card {

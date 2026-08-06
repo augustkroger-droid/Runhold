@@ -178,6 +178,13 @@ export function LoginScreen({
         return;
       }
 
+      if (/email rate limit exceeded|rate limit/i.test(authMessage)) {
+        setError(
+          "Supabase försöker skicka verifieringsmail och har nått sin emailgräns. Stäng av email confirmation i Supabase för testläget, eller vänta tills gränsen släpper.",
+        );
+        return;
+      }
+
       setError(
         authMessage.includes("Invalid login credentials")
           ? "Fel användarnamn eller lösenord."

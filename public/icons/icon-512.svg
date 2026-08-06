@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Runhold icon">
+  <rect width="512" height="512" rx="112" fill="#101820"/>
+  <circle cx="256" cy="256" r="154" fill="#43d9ad"/>
+  <circle cx="256" cy="256" r="76" fill="#101820"/>
+  <path d="M256 82v91M256 339v91M82 256h91M339 256h91" stroke="#f5b84b" stroke-width="32" stroke-linecap="round"/>
+  <circle cx="256" cy="256" r="26" fill="#f4f7f5"/>
+</svg>

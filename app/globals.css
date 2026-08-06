@@ -171,14 +171,14 @@ input {
   overflow: hidden;
   background:
     linear-gradient(180deg, rgba(2, 5, 8, 0.04), rgba(2, 5, 8, 0.18) 46%, rgba(2, 5, 8, 0.58)),
-    url("/auth/runhold-login-bg.png");
+    url("/auth/runhold-login-poster.jpg");
   background-position: 50% 92%, 50% 92%;
   background-repeat: no-repeat;
   background-size: cover, auto 142%;
   filter: saturate(1.05) contrast(1.04);
 }
 
-.auth-video {
+.auth-gif {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -187,6 +187,8 @@ input {
   object-position: center center;
   opacity: 0;
   animation: auth-video-reveal 420ms ease-out 80ms forwards;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 .auth-sky::before,

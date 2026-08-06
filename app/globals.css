@@ -141,8 +141,9 @@ input {
   inset: 0;
   z-index: 1;
   background:
-    radial-gradient(circle at 50% 80%, rgba(255, 123, 38, 0.18), transparent 14rem),
-    linear-gradient(180deg, rgba(2, 5, 8, 0.04), rgba(2, 5, 8, 0.18) 42%, rgba(2, 5, 8, 0.72));
+    radial-gradient(circle at 50% 82%, rgba(255, 120, 32, 0.24), transparent 12rem),
+    radial-gradient(circle at 72% 16%, rgba(195, 216, 230, 0.18), transparent 9rem),
+    linear-gradient(180deg, rgba(2, 5, 8, 0.08), rgba(2, 5, 8, 0.24) 44%, rgba(2, 5, 8, 0.76));
   content: "";
   pointer-events: none;
 }
@@ -170,53 +171,69 @@ input {
   z-index: 0;
   overflow: hidden;
   background:
-    linear-gradient(180deg, rgba(2, 5, 8, 0.04), rgba(2, 5, 8, 0.18) 46%, rgba(2, 5, 8, 0.58)),
-    url("/auth/runhold-login-poster.jpg");
-  background-position: 50% 92%, 50% 92%;
+    radial-gradient(circle at 22% 22%, rgba(54, 94, 114, 0.12), transparent 17rem),
+    radial-gradient(circle at 74% 18%, rgba(148, 174, 190, 0.2), transparent 12rem),
+    radial-gradient(circle at 50% 85%, rgba(255, 112, 28, 0.18), transparent 17rem),
+    linear-gradient(180deg, #071522 0%, #06101a 42%, #020507 100%);
+  background-position: 50% 50%;
   background-repeat: no-repeat;
-  background-size: cover, auto 142%;
+  background-size: cover;
   filter: saturate(1.05) contrast(1.04);
-}
-
-.auth-gif {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center center;
-  opacity: 0;
-  animation: auth-video-reveal 420ms ease-out 80ms forwards;
-  user-select: none;
-  -webkit-user-drag: none;
+  animation: auth-sky-breathe 8s ease-in-out infinite alternate;
 }
 
 .auth-sky::before,
 .auth-sky::after {
-  display: none;
-}
-
-.auth-sky::before {
-  bottom: 13vh;
-  opacity: 0.62;
-  transform: scaleY(1.16);
+  position: absolute;
+  right: -12vw;
+  left: -12vw;
+  content: "";
+  pointer-events: none;
 }
 
 .auth-sky::after {
-  bottom: 0;
-  opacity: 0.9;
+  bottom: -1rem;
+  height: 49vh;
+  background:
+    linear-gradient(180deg, transparent 0 28%, rgba(2, 5, 8, 0.78) 78%),
+    repeating-linear-gradient(88deg, transparent 0 1.25rem, rgba(1, 4, 6, 0.78) 1.3rem 1.55rem, transparent 1.6rem 2.75rem),
+    linear-gradient(180deg, rgba(7, 16, 24, 0.16), rgba(1, 4, 6, 0.96));
+  clip-path: polygon(0 36%, 7% 24%, 13% 37%, 22% 19%, 31% 42%, 42% 23%, 49% 38%, 59% 18%, 70% 34%, 82% 14%, 91% 32%, 100% 22%, 100% 100%, 0 100%);
+  opacity: 0.95;
+}
+
+.auth-sky::before {
+  bottom: 23vh;
+  height: 28vh;
+  background: linear-gradient(180deg, rgba(19, 39, 54, 0.28), rgba(3, 8, 13, 0.88));
+  clip-path: polygon(0 78%, 11% 51%, 23% 74%, 34% 38%, 46% 72%, 58% 44%, 73% 77%, 84% 35%, 100% 70%, 100% 100%, 0 100%);
+  opacity: 0.72;
+  transform: translateX(-1.4rem);
+  animation: auth-mountains-drift 13s ease-in-out infinite alternate;
 }
 
 .auth-moon {
-  display: none;
-}
-
-.auth-tree,
-.auth-watchtower {
-  display: none;
+  position: absolute;
+  top: 8.5vh;
+  left: calc(50% + 5.7rem);
+  width: clamp(4.5rem, 18vw, 6.4rem);
+  aspect-ratio: 1;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 34% 31%, rgba(88, 91, 91, 0.38) 0 0.42rem, transparent 0.46rem),
+    radial-gradient(circle at 62% 48%, rgba(72, 75, 76, 0.3) 0 0.6rem, transparent 0.65rem),
+    radial-gradient(circle at 46% 68%, rgba(76, 78, 77, 0.24) 0 0.5rem, transparent 0.55rem),
+    radial-gradient(circle at 42% 38%, #f0eadb, #c8c1ad 62%, #8f968f);
+  box-shadow:
+    0 0 1.8rem rgba(208, 225, 236, 0.36),
+    0 0 5rem rgba(91, 140, 166, 0.2);
+  opacity: 0.88;
+  animation: auth-moon-drift 9s ease-in-out infinite alternate;
 }
 
 .auth-tree {
+  position: absolute;
+  bottom: 3vh;
   width: 8rem;
   height: 22rem;
   background:
@@ -229,18 +246,26 @@ input {
 
 .auth-tree-left {
   left: -2.5rem;
+  height: 60vh;
+  opacity: 0.74;
 }
 
 .auth-tree-right {
   right: -3rem;
+  height: 68vh;
+  opacity: 0.86;
   transform: scaleX(-1);
 }
 
 .auth-watchtower {
+  position: absolute;
+  bottom: 15vh;
   right: 7vw;
   width: 5.5rem;
   height: 13rem;
-  opacity: 0.6;
+  opacity: 0.52;
+  transform: translateX(0);
+  animation: auth-watchtower-glow 2.8s ease-in-out infinite alternate;
 }
 
 .auth-watchtower::before {
@@ -275,7 +300,13 @@ input {
 }
 
 .auth-campfire {
-  display: none;
+  position: absolute;
+  bottom: 8vh;
+  left: 50%;
+  width: 8rem;
+  height: 5rem;
+  transform: translateX(-50%);
+  filter: drop-shadow(0 0 1.6rem rgba(255, 100, 26, 0.45));
 }
 
 .auth-campfire::before {
@@ -300,6 +331,20 @@ input {
   transform: translateX(-50%) rotate(45deg);
   transform-origin: 50% 100%;
   animation: auth-flame 1.7s ease-in-out infinite alternate;
+}
+
+.auth-campfire::after {
+  position: absolute;
+  bottom: 0.4rem;
+  left: 50%;
+  width: 5.8rem;
+  height: 1rem;
+  border-radius: 999px;
+  background:
+    linear-gradient(28deg, transparent 0 26%, #1b0d07 27% 43%, transparent 44%),
+    linear-gradient(-24deg, transparent 0 30%, #1b0d07 31% 50%, transparent 51%);
+  content: "";
+  transform: translateX(-50%);
 }
 
 .auth-campfire i {
@@ -541,31 +586,45 @@ input {
   text-align: center;
   font-size: 0.88rem;
   opacity: 0;
-  animation: auth-footer-reveal 680ms ease-out 2.1s forwards;
+  animation: auth-footer-reveal 680ms ease-out 820ms forwards;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
 }
 
-@keyframes auth-scene-pan {
-  0% {
-    background-position: 50% 100%, 50% 100%;
-    filter: brightness(1.2) saturate(1.12) contrast(1.08);
+@keyframes auth-sky-breathe {
+  from {
+    filter: brightness(0.95) saturate(1.02) contrast(1.04);
+    transform: scale(1);
   }
-  54% {
-    background-position: 50% 58%, 50% 58%;
-    filter: brightness(1.02) saturate(1.08) contrast(1.05);
-  }
-  100% {
-    background-position: 50% 22%, 50% 22%;
-    filter: brightness(0.82) saturate(1.02) contrast(1.03);
+  to {
+    filter: brightness(1.05) saturate(1.1) contrast(1.06);
+    transform: scale(1.015);
   }
 }
 
-@keyframes auth-video-reveal {
+@keyframes auth-moon-drift {
   from {
-    opacity: 0;
+    transform: translate3d(-0.2rem, 0, 0);
   }
   to {
-    opacity: 1;
+    transform: translate3d(0.35rem, 0.25rem, 0);
+  }
+}
+
+@keyframes auth-mountains-drift {
+  from {
+    transform: translateX(-1.4rem);
+  }
+  to {
+    transform: translateX(1.1rem);
+  }
+}
+
+@keyframes auth-watchtower-glow {
+  from {
+    opacity: 0.45;
+  }
+  to {
+    opacity: 0.62;
   }
 }
 
@@ -607,7 +666,7 @@ input {
   }
 
   .auth-sky {
-    background-size: cover, auto 152%;
+    background-size: cover;
   }
 
   .auth-card {
@@ -618,6 +677,9 @@ input {
 
 @media (prefers-reduced-motion: reduce) {
   .auth-sky,
+  .auth-sky::before,
+  .auth-moon,
+  .auth-watchtower,
   .auth-card-ready,
   .auth-footer,
   .auth-campfire i,

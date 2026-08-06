@@ -1,7 +1,6 @@
 "use client";
 
 import { AlertCircle, Lock, LogIn, ShieldCheck, User, UserPlus } from "lucide-react";
-import Image from "next/image";
 import { FormEvent, useEffect, useState } from "react";
 import { EmberCanvas } from "@/components/auth/ember-canvas";
 import { isStrongPassword, normalizeUsername, usernameToAuthEmail } from "@/lib/auth/username";
@@ -27,7 +26,7 @@ export function LoginScreen({
 
   useEffect(() => {
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const timer = window.setTimeout(() => setIntroDone(true), reducedMotion ? 250 : 1_700);
+    const timer = window.setTimeout(() => setIntroDone(true), reducedMotion ? 250 : 520);
 
     return () => window.clearTimeout(timer);
   }, []);
@@ -135,15 +134,6 @@ export function LoginScreen({
     <main className="auth-shell">
       <EmberCanvas />
       <div className="auth-sky" aria-hidden="true">
-        <Image
-          className="auth-gif"
-          src="/auth/runhold-login-bg.gif"
-          alt=""
-          fill
-          draggable={false}
-          priority
-          unoptimized
-        />
         <div className="auth-moon" />
         <div className="auth-tree auth-tree-left" />
         <div className="auth-tree auth-tree-right" />

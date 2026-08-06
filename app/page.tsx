@@ -1,11 +1,5 @@
-import { MissionApp } from "@/components/mission-app";
-import { ServiceWorkerRegister } from "@/components/service-worker-register";
+import { AppShell } from "@/components/app-shell";
 
 export default function Home() {
-  return (
-    <>
-      <MissionApp />
-      <ServiceWorkerRegister />
-    </>
-  );
+  return <AppShell />;
 }

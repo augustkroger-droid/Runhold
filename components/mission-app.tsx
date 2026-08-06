@@ -1,13 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Bug, Info, Satellite, Trophy } from "lucide-react";
+import { Bug, Info, LogOut, Satellite, Trophy } from "lucide-react";
 import { LocationPermissionCard } from "@/components/location-permission-card";
 import { MapLoader } from "@/components/map/map-loader";
 import { MissionControls } from "@/components/mission-controls";
 import { MissionStatusPanel } from "@/components/mission-status";
 import { PingOverlay } from "@/components/ping-overlay";
-import { useAnonymousSession } from "@/hooks/use-anonymous-session";
 import { type GeoReading, useGeolocationWatch } from "@/hooks/use-geolocation-watch";
 import { useMissionPersistence } from "@/hooks/use-mission";
 import { createWalkableDestination } from "@/lib/geo/walkable-destination";
@@ -46,8 +45,15 @@ function pointsForPing(basePoints: number, accuracyM: number): number {
   return accuracyM <= 20 ? basePoints + ACCURACY_BONUS_POINTS : basePoints;
 }
 
-export function MissionApp() {
-  const { userId, loading: sessionLoading, error: sessionError } = useAnonymousSession();
+export function MissionApp({
+  userId,
+  username,
+  onSignOut,
+}: {
+  userId: string;
+  username: string;
+  onSignOut: () => void;
+}) {
   const { createMission, updateMission } = useMissionPersistence(userId);
   const { startWatch, stopWatch } = useGeolocationWatch();
 
@@ -496,7 +502,7 @@ export function MissionApp() {
       <header className="flex items-center justify-between gap-3">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#43d9ad]">
-            GPS Field MVP
+            {username}
           </p>
           <h1 className="text-3xl font-black text-white">Runhold</h1>
         </div>
@@ -511,6 +517,14 @@ export function MissionApp() {
           <div className="grid size-11 place-items-center rounded-full bg-[#22303b] text-[#43d9ad]">
             <Satellite aria-hidden="true" size={24} />
           </div>
+          <button
+            type="button"
+            className="grid size-11 place-items-center rounded-full bg-[#22303b] text-[#c9d4d0]"
+            aria-label="Logga ut"
+            onClick={onSignOut}
+          >
+            <LogOut aria-hidden="true" size={20} />
+          </button>
         </div>
       </header>
 
@@ -536,7 +550,7 @@ export function MissionApp() {
             distanceM={activeDistanceM}
             accuracyM={accuracyM}
             plannedDistanceM={plannedDistanceM}
-            sessionError={sessionLoading ? null : sessionError}
+            sessionError={null}
             persistenceError={persistenceError}
           />
 

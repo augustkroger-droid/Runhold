@@ -60,9 +60,11 @@ GPS kräver normalt HTTPS på mobil. Lokal testning fungerar bäst med webbläsa
 
 1. Skapa ett nytt Supabase-projekt.
 2. Hämta Project URL och publishable/anon key under `Project Settings` -> `API`.
-3. Aktivera anonym inloggning under `Authentication` -> `Sign In / Providers` -> `Anonymous sign-ins`.
-4. Kör SQL-migrationen i `supabase/migrations/001_initial_schema.sql` via Supabase SQL Editor, eller med Supabase CLI om du använder CLI lokalt.
-5. Kontrollera att RLS är aktivt:
+3. Aktivera email/password-inloggning under `Authentication` -> `Sign In / Providers` -> `Email`.
+4. För nuvarande testläge: stäng av email confirmation så att nya konton kan logga in direkt. Vi kopplar riktig mailverifiering och lösenordsåterställning senare.
+5. Användarnamn i appen sparas som Supabase Auth metadata. Bakom kulisserna skapar testversionen ett internt auth-email från användarnamnet.
+6. Kör SQL-migrationen i `supabase/migrations/001_initial_schema.sql` via Supabase SQL Editor, eller med Supabase CLI om du använder CLI lokalt.
+7. Kontrollera att RLS är aktivt:
 
    ```sql
    select relrowsecurity
@@ -72,7 +74,7 @@ GPS kräver normalt HTTPS på mobil. Lokal testning fungerar bäst med webbläsa
 
    Resultatet ska vara `true`.
 
-6. Verifiera isolering genom att skapa två anonyma sessioner i två olika webbläsare/profiler. Varje session ska bara kunna läsa sina egna rader eftersom policies använder `auth.uid() = user_id`.
+8. Verifiera isolering genom att skapa två konton i två olika webbläsare/profiler. Varje konto ska bara kunna läsa sina egna rader eftersom policies använder `auth.uid() = user_id`.
 
 Tabellen sparar startkoordinat, destinationskoordinat, planerad fågelvägsdistans, status och tidsstämplar. Den sparar inte löpande GPS-spår.
 

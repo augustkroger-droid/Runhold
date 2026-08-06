@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertCircle, Lock, LogIn, ShieldCheck, User, UserPlus } from "lucide-react";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { EmberCanvas } from "@/components/auth/ember-canvas";
 import { isStrongPassword, normalizeUsername, usernameToAuthEmail } from "@/lib/auth/username";
 import { getSupabaseClient } from "@/lib/supabase/client";
@@ -19,9 +19,17 @@ export function LoginScreen({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [introDone, setIntroDone] = useState(false);
 
   const isSignup = mode === "signup";
   const isForgot = mode === "forgot";
+
+  useEffect(() => {
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const timer = window.setTimeout(() => setIntroDone(true), reducedMotion ? 250 : 3_050);
+
+    return () => window.clearTimeout(timer);
+  }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -138,7 +146,10 @@ export function LoginScreen({
         </div>
       </div>
 
-      <section className="auth-card" aria-label="Runhold inloggning">
+      <section
+        className={`auth-card ${introDone ? "auth-card-ready" : ""}`}
+        aria-label="Runhold inloggning"
+      >
         <div className="auth-logo" aria-hidden="true">
           <div className="auth-logo-moon">
             <span />

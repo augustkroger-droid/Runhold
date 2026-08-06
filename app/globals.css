@@ -541,7 +541,7 @@ input {
   text-align: center;
   font-size: 0.88rem;
   opacity: 0;
-  animation: auth-footer-reveal 680ms ease-out 3.5s forwards;
+  animation: auth-footer-reveal 680ms ease-out 2.1s forwards;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
 }
 

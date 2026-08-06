@@ -27,7 +27,7 @@ export function LoginScreen({
 
   useEffect(() => {
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const timer = window.setTimeout(() => setIntroDone(true), reducedMotion ? 250 : 3_900);
+    const timer = window.setTimeout(() => setIntroDone(true), reducedMotion ? 250 : 1_700);
 
     return () => window.clearTimeout(timer);
   }, []);

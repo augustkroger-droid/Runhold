@@ -7,9 +7,9 @@ const phaseLabels: Record<MissionStatus, string> = {
   selecting_destination: "Välj mål",
   ready: "Klar att starta",
   outbound: "Mot destinationen",
-  destination_reached: "Destination hittad",
+  destination_reached: "Målet hämtat",
   returning: "Tillbaka till start",
-  completed: "Slutfört",
+  completed: "Hemma igen",
   cancelled: "Avbrutet",
   error: "Fel",
 };

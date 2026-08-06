@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Bug, Info, Satellite } from "lucide-react";
+import { Bug, Info, Satellite, Trophy } from "lucide-react";
 import { LocationPermissionCard } from "@/components/location-permission-card";
 import { MapLoader } from "@/components/map/map-loader";
 import { MissionControls } from "@/components/mission-controls";
@@ -10,7 +10,7 @@ import { PingOverlay } from "@/components/ping-overlay";
 import { useAnonymousSession } from "@/hooks/use-anonymous-session";
 import { type GeoReading, useGeolocationWatch } from "@/hooks/use-geolocation-watch";
 import { useMissionPersistence } from "@/hooks/use-mission";
-import { destinationPoint } from "@/lib/geo/destination-point";
+import { createWalkableDestination } from "@/lib/geo/walkable-destination";
 import {
   haversineDistanceMeters,
   updateReachStreak,
@@ -19,6 +19,9 @@ import type { Coordinate, MissionStatus } from "@/lib/types/mission";
 
 const REACH_RADIUS_M = 20;
 const MAX_PING_ACCURACY_M = 40;
+const DESTINATION_POINTS = 50;
+const RETURN_POINTS = 50;
+const ACCURACY_BONUS_POINTS = 10;
 
 function formatDuration(from: number | null, to: number | null): string {
   if (!from || !to || to < from) return "--";
@@ -40,6 +43,10 @@ function errorFromPositionError(error: GeolocationPositionError): string {
   return "Kunde inte hitta din position just nu.";
 }
 
+function pointsForPing(basePoints: number, accuracyM: number): number {
+  return accuracyM <= 20 ? basePoints + ACCURACY_BONUS_POINTS : basePoints;
+}
+
 export function MissionApp() {
   const { userId, loading: sessionLoading, error: sessionError } = useAnonymousSession();
   const { createMission, updateMission } = useMissionPersistence(userId);
@@ -54,12 +61,19 @@ export function MissionApp() {
   const [message, setMessage] = useState<string | null>(null);
   const [persistenceError, setPersistenceError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
+  const [creatingDestination, setCreatingDestination] = useState(false);
   const [overlay, setOverlay] = useState<string | null>(null);
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [destinationReachedAt, setDestinationReachedAt] = useState<number | null>(null);
   const [completedAt, setCompletedAt] = useState<number | null>(null);
   const [destinationPingAccuracyM, setDestinationPingAccuracyM] = useState<number | null>(null);
   const [returnPingAccuracyM, setReturnPingAccuracyM] = useState<number | null>(null);
+  const [missionScore, setMissionScore] = useState(0);
+  const [totalScore, setTotalScore] = useState(() => {
+    if (typeof window === "undefined") return 0;
+    const savedScore = window.localStorage.getItem("runhold-total-score");
+    return savedScore ? Number(savedScore) || 0 : 0;
+  });
 
   const statusRef = useRef(status);
   const startRef = useRef(start);
@@ -67,6 +81,7 @@ export function MissionApp() {
   const missionIdRef = useRef(missionId);
   const outboundStreakRef = useRef(0);
   const returnStreakRef = useRef(0);
+  const missionScoreRef = useRef(0);
   const audioContextRef = useRef<AudioContext | null>(null);
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
 
@@ -85,6 +100,10 @@ export function MissionApp() {
   useEffect(() => {
     missionIdRef.current = missionId;
   }, [missionId]);
+
+  useEffect(() => {
+    missionScoreRef.current = missionScore;
+  }, [missionScore]);
 
   const plannedDistanceM = useMemo(() => {
     if (!start || !destination) return null;
@@ -167,10 +186,16 @@ export function MissionApp() {
 
   const handleReachedDestination = useCallback(
     async (reading: GeoReading) => {
+      const earnedPoints = pointsForPing(DESTINATION_POINTS, reading.accuracyM);
       setStatus("destination_reached");
       setDestinationReachedAt(Date.now());
       setDestinationPingAccuracyM(reading.accuracyM);
-      setOverlay("Destination hittad!");
+      setMissionScore((previousScore) => {
+        const nextScore = previousScore + earnedPoints;
+        missionScoreRef.current = nextScore;
+        return nextScore;
+      });
+      setOverlay(`Målet hämtat! +${earnedPoints} poäng`);
       playPing();
 
       if (missionIdRef.current) {
@@ -195,10 +220,18 @@ export function MissionApp() {
   const handleCompleted = useCallback(
     async (reading: GeoReading) => {
       const now = Date.now();
+      const earnedPoints = pointsForPing(RETURN_POINTS, reading.accuracyM);
+      const completedMissionScore = missionScoreRef.current + earnedPoints;
       setStatus("completed");
       setCompletedAt(now);
       setReturnPingAccuracyM(reading.accuracyM);
-      setOverlay("Uppdrag slutfört!");
+      setMissionScore(completedMissionScore);
+      setTotalScore((previousTotal) => {
+        const nextTotal = previousTotal + completedMissionScore;
+        window.localStorage.setItem("runhold-total-score", String(nextTotal));
+        return nextTotal;
+      });
+      setOverlay(`Tillbaka hemma! +${earnedPoints} poäng. Uppdrag: ${completedMissionScore} poäng.`);
       playPing();
       stopWatch();
       await releaseWakeLock();
@@ -292,7 +325,7 @@ export function MissionApp() {
         setAccuracyM(position.coords.accuracy);
         setDestination(null);
         setStatus("selecting_destination");
-        setMessage("Startpunkt hittad. Tryck på kartan eller skapa ett testmål.");
+        setMessage("Startpunkt hittad. Slumpa ett mål runt 500 meter bort eller tryck på kartan.");
       },
       (error) => {
         setStatus("error");
@@ -312,10 +345,19 @@ export function MissionApp() {
     setMessage("Destination vald. Kontrollera avståndet och starta uppdraget.");
   }, []);
 
-  const createTestDestination = useCallback(() => {
+  const createTestDestination = useCallback(async () => {
     if (!start) return;
-    const bearing = Math.random() * 360;
-    selectDestination(destinationPoint(start, bearing, 500));
+    setCreatingDestination(true);
+    setMessage("Letar efter en gångbar OpenStreetMap-punkt cirka 500 meter bort...");
+
+    const result = await createWalkableDestination(start);
+    selectDestination(result.destination);
+    setMessage(
+      result.source === "osm-walkable"
+        ? "Mål valt på eller nära en gångbar OSM-väg runt 500 meter bort."
+        : "Kunde inte hitta en säker gångvägspunkt just nu. Ett vanligt 500-metersmål skapades.",
+    );
+    setCreatingDestination(false);
   }, [selectDestination, start]);
 
   const startMission = useCallback(async () => {
@@ -409,6 +451,8 @@ export function MissionApp() {
     setCompletedAt(null);
     setDestinationPingAccuracyM(null);
     setReturnPingAccuracyM(null);
+    setMissionScore(0);
+    missionScoreRef.current = 0;
     outboundStreakRef.current = 0;
     returnStreakRef.current = 0;
   }, [stopWatch]);
@@ -438,8 +482,17 @@ export function MissionApp() {
           </p>
           <h1 className="text-3xl font-black text-white">Runhold</h1>
         </div>
-        <div className="grid size-11 place-items-center rounded-full bg-[#22303b] text-[#43d9ad]">
-          <Satellite aria-hidden="true" size={24} />
+        <div className="flex items-center gap-2">
+          <div className="rounded-md border border-[#f5b84b]/40 bg-[#2b2414] px-3 py-2 text-right">
+            <div className="flex items-center gap-1 text-xs font-bold uppercase tracking-[0.12em] text-[#f5b84b]">
+              <Trophy aria-hidden="true" size={14} />
+              Poäng
+            </div>
+            <p className="text-lg font-black text-white">{totalScore}</p>
+          </div>
+          <div className="grid size-11 place-items-center rounded-full bg-[#22303b] text-[#43d9ad]">
+            <Satellite aria-hidden="true" size={24} />
+          </div>
         </div>
       </header>
 
@@ -469,6 +522,23 @@ export function MissionApp() {
             persistenceError={persistenceError}
           />
 
+          <section className="grid grid-cols-2 gap-3">
+            <div className="rounded-lg border border-[#f5b84b]/30 bg-[#2b2414] p-3">
+              <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#f5b84b]">
+                Uppdragspoäng
+              </p>
+              <p className="mt-1 text-3xl font-black text-white">{missionScore}</p>
+            </div>
+            <div className="rounded-lg border border-white/10 bg-[#18232d] p-3">
+              <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#aeb9b6]">
+                Belöning
+              </p>
+              <p className="mt-1 text-sm leading-5 text-[#d7e1dd]">
+                +50 vid mål, +50 hemma. +10 bonus vid GPS under 20 m.
+              </p>
+            </div>
+          </section>
+
           {message ? (
             <p className="rounded-md bg-[#22303b] p-3 text-sm leading-6 text-[#d7e1dd]">
               {message}
@@ -480,6 +550,7 @@ export function MissionApp() {
             hasDestination={Boolean(destination)}
             destinationDistanceM={plannedDistanceM}
             onCreateTestDestination={createTestDestination}
+            creatingDestination={creatingDestination}
             onStartMission={startMission}
             onBeginReturn={beginReturn}
             onCancel={cancelMission}
@@ -493,6 +564,10 @@ export function MissionApp() {
         <section className="rounded-lg border border-[#43d9ad]/30 bg-[#16342d] p-4">
           <h2 className="text-xl font-black text-white">Sammanfattning</h2>
           <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
+            <div className="rounded-md bg-[#0f211c] p-3">
+              <dt className="text-[#a9cfc3]">Poäng</dt>
+              <dd className="mt-1 text-lg font-black text-white">{missionScore}</dd>
+            </div>
             <div className="rounded-md bg-[#0f211c] p-3">
               <dt className="text-[#a9cfc3]">Planerat avstånd</dt>
               <dd className="mt-1 text-lg font-black text-white">

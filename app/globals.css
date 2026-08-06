@@ -42,7 +42,26 @@ input {
 .leaflet-container {
   width: 100%;
   height: 100%;
-  background: #1b252f;
+  background: #dbe7df;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.leaflet-control-zoom {
+  overflow: hidden;
+  border: 0 !important;
+  border-radius: 0.5rem !important;
+  box-shadow: 0 10px 28px rgba(8, 15, 20, 0.24) !important;
+}
+
+.leaflet-control-zoom a {
+  background: rgba(255, 255, 255, 0.92) !important;
+  color: #101820 !important;
+  font-weight: 900;
+}
+
+.leaflet-control-attribution {
+  border-top-left-radius: 0.375rem;
+  background: rgba(255, 255, 255, 0.85) !important;
 }
 
 .runhold-marker {
@@ -52,7 +71,9 @@ input {
   place-items: center;
   border: 3px solid #ffffff;
   border-radius: 999px;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.38);
+  box-shadow:
+    0 0 0 4px rgba(16, 24, 32, 0.18),
+    0 8px 22px rgba(0, 0, 0, 0.38);
 }
 
 .runhold-marker::after {
@@ -71,10 +92,14 @@ input {
 }
 
 .runhold-marker-destination {
+  width: 32px;
+  height: 32px;
   background: #f5b84b;
 }
 
 .runhold-marker-destination::after {
+  width: 12px;
+  height: 12px;
   background: #674005;
 }
 

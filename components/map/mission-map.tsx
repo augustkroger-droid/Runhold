@@ -1,7 +1,17 @@
 "use client";
 
 import L from "leaflet";
-import { Circle, MapContainer, Marker, Polyline, TileLayer, useMap, useMapEvents } from "react-leaflet";
+import { useEffect } from "react";
+import {
+  Circle,
+  MapContainer,
+  Marker,
+  Polyline,
+  TileLayer,
+  ZoomControl,
+  useMap,
+  useMapEvents,
+} from "react-leaflet";
 import type { Coordinate } from "@/lib/types/mission";
 
 const startIcon = L.divIcon({
@@ -47,7 +57,11 @@ function MapClickHandler({
 
 function Recenter({ center }: { center: Coordinate }) {
   const map = useMap();
-  map.setView([center.lat, center.lng], map.getZoom(), { animate: true });
+
+  useEffect(() => {
+    map.setView([center.lat, center.lng], map.getZoom(), { animate: true });
+  }, [center.lat, center.lng, map]);
+
   return null;
 }
 
@@ -76,12 +90,14 @@ export function MissionMap({
       maxZoom={19}
       scrollWheelZoom
       touchZoom
+      zoomControl={false}
       className="z-0 h-full min-h-[420px] rounded-lg"
     >
       <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>-bidragsgivare'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>-bidragsgivare &copy; <a href="https://carto.com/attributions">CARTO</a>'
+        url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
       />
+      <ZoomControl position="topright" />
       <Recenter center={activeCenter} />
       <MapClickHandler
         enabled={canSelectDestination}
@@ -109,7 +125,14 @@ export function MissionMap({
               [start.lat, start.lng],
               [destination.lat, destination.lng],
             ]}
-            pathOptions={{ color: "#6ea8fe", dashArray: "8 10", weight: 4 }}
+            pathOptions={{ color: "#0b1320", opacity: 0.55, weight: 8 }}
+          />
+          <Polyline
+            positions={[
+              [start.lat, start.lng],
+              [destination.lat, destination.lng],
+            ]}
+            pathOptions={{ color: "#2f6fed", dashArray: "8 10", weight: 4 }}
           />
         </>
       ) : null}

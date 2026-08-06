@@ -2,6 +2,8 @@
 
 Runhold är en liten mobilanpassad PWA för ett tekniskt GPS-test inför ett framtida löparspel. Appen hämtar startposition först efter knapptryck, låter användaren placera ett mål cirka 500 meter bort, följer positionen lokalt i webbläsaren och sparar endast uppdragets resultat i Supabase.
 
+Målet kan slumpas fram via OpenStreetMap/Overpass så att appen försöker välja en punkt på en gångbar väg runt 500 meter från start. Det är en bästa möjliga MVP-lösning, inte riktig ruttplanering. Om Overpass inte svarar eller saknar bra träffar faller appen tillbaka till en geografiskt korrekt 500-meterspunkt.
+
 ## Lokalt
 
 1. Installera Node.js 22 eller senare. Projektet skapades och testades med Node 24.
@@ -107,16 +109,18 @@ Tabellen sparar startkoordinat, destinationskoordinat, planerad fågelvägsdista
 3. Tillåt exakt plats.
 4. Vänta tills GPS-noggrannheten helst är bättre än 20 meter.
 5. Placera ett mål ungefär 500 meter bort, eller använd `Skapa testmål 500 m bort`.
-6. Starta uppdraget.
+6. Starta hämta-och-vänd-uppdraget.
 7. Håll appen öppen.
 8. Gå till målet.
-9. Kontrollera ljud, vibration och visuell ping.
+9. Kontrollera ljud, vibration, visuell ping och poäng vid målet.
 10. Starta returfasen.
 11. Gå tillbaka.
-12. Kontrollera att uppdraget sparats i Supabase.
+12. Kontrollera poängsammanfattningen och att uppdraget sparats i Supabase.
 
 ## Viktiga begränsningar
 
-Appen behöver internet för OpenStreetMap och Supabase. Service workern cachelagrar bara appens grundskal och en offline-sida, inte karttiles. En PWA kan inte garantera kontinuerlig bakgrundsspårning, så håll appen öppen och skärmen aktiv under testet.
+Appen behöver internet för OpenStreetMap, Overpass och Supabase. Service workern cachelagrar bara appens grundskal och en offline-sida, inte karttiles. En PWA kan inte garantera kontinuerlig bakgrundsspårning, så håll appen öppen och skärmen aktiv under testet.
 
 Utvecklarläget visas bara i development och innehåller knappar för att simulera målträff och återkomst.
+
+Poäng sparas lokalt i webbläsaren på enheten. Uppdragsraderna i Supabase sparar fortfarande bara start, destination, status, tider och GPS-noggrannhet.

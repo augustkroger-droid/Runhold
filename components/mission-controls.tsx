@@ -1,4 +1,4 @@
-import { Flag, LocateFixed, Play, RotateCcw, Square, Target } from "lucide-react";
+import { Flag, LocateFixed, MapPinned, Play, RotateCcw, Square } from "lucide-react";
 import type { MissionStatus } from "@/lib/types/mission";
 
 export function MissionControls({
@@ -6,6 +6,7 @@ export function MissionControls({
   hasDestination,
   destinationDistanceM,
   onCreateTestDestination,
+  creatingDestination,
   onStartMission,
   onBeginReturn,
   onCancel,
@@ -16,6 +17,7 @@ export function MissionControls({
   hasDestination: boolean;
   destinationDistanceM: number | null;
   onCreateTestDestination: () => void;
+  creatingDestination: boolean;
   onStartMission: () => void;
   onBeginReturn: () => void;
   onCancel: () => void;
@@ -33,15 +35,21 @@ export function MissionControls({
         <div className="space-y-3">
           <button
             type="button"
-            className="flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-[#43d9ad]/50 bg-[#16342d] px-4 font-bold text-[#d7fff0]"
+            className="flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-[#43d9ad]/50 bg-[#16342d] px-4 font-bold text-[#d7fff0] disabled:cursor-wait disabled:opacity-75"
             onClick={onCreateTestDestination}
+            disabled={creatingDestination}
           >
-            <Target aria-hidden="true" size={20} />
-            Skapa testmål 500 m bort
+            {creatingDestination ? (
+              <LocateFixed aria-hidden="true" className="animate-pulse" size={20} />
+            ) : (
+              <MapPinned aria-hidden="true" size={20} />
+            )}
+            {creatingDestination ? "Letar gångvänligt mål..." : "Slumpa mål på gångväg 500 m bort"}
           </button>
           <p className="text-sm leading-6 text-[#c9d4d0]">
-            Du kan också trycka på kartan för att flytta målet. 500 meter avser
-            fågelvägen, inte en gångrutt.
+            Appen försöker hitta en OpenStreetMap-punkt på en gångbar väg cirka
+            500 meter från start. Om det inte går skapas ett vanligt 500-metersmål.
+            Du kan fortfarande flytta målet genom att trycka på kartan.
           </p>
           {outsideRange ? (
             <p className="rounded-md border border-[#f5b84b]/50 bg-[#3d3017] p-3 text-sm text-[#ffe6ad]">
@@ -55,7 +63,7 @@ export function MissionControls({
             disabled={!canStart || starting}
           >
             <Play aria-hidden="true" size={21} />
-            {starting ? "Startar..." : "Starta uppdrag"}
+            {starting ? "Startar..." : "Starta hämta-och-vänd"}
           </button>
         </div>
       ) : null}

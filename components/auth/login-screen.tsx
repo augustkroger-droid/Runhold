@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertCircle, Lock, LogIn, ShieldCheck, User, UserPlus } from "lucide-react";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, SyntheticEvent, useEffect, useState } from "react";
 import { EmberCanvas } from "@/components/auth/ember-canvas";
 import { isStrongPassword, normalizeUsername, usernameToAuthEmail } from "@/lib/auth/username";
 import { getSupabaseClient } from "@/lib/supabase/client";
@@ -30,6 +30,14 @@ export function LoginScreen({
 
     return () => window.clearTimeout(timer);
   }, []);
+
+  function skipVideoIntro(event: SyntheticEvent<HTMLVideoElement>) {
+    const video = event.currentTarget;
+
+    if (video.currentTime < 0.45) {
+      video.currentTime = 0.5;
+    }
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -134,6 +142,18 @@ export function LoginScreen({
     <main className="auth-shell">
       <EmberCanvas />
       <div className="auth-sky" aria-hidden="true">
+        <video
+          className="auth-video"
+          autoPlay
+          muted
+          playsInline
+          preload="auto"
+          poster="/auth/runhold-login-bg.png"
+          onLoadedMetadata={skipVideoIntro}
+          onEnded={(event) => event.currentTarget.pause()}
+        >
+          <source src="/auth/runhold-login-bg.mp4#t=0.5" type="video/mp4" />
+        </video>
         <div className="auth-moon" />
         <div className="auth-tree auth-tree-left" />
         <div className="auth-tree auth-tree-right" />

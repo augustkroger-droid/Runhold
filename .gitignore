@@ -3,6 +3,7 @@ node_modules/
 out/
 dist/
 coverage/
+tmp/
 *.tsbuildinfo
 .env*.local
 !.env.local.example

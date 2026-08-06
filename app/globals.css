@@ -175,9 +175,18 @@ input {
   background-position: 50% 92%, 50% 92%;
   background-repeat: no-repeat;
   background-size: cover, auto 142%;
-  animation: auth-scene-pan 3s cubic-bezier(0.16, 0.84, 0.22, 1) forwards;
   filter: saturate(1.05) contrast(1.04);
-  will-change: background-position, filter;
+}
+
+.auth-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center center;
+  opacity: 0;
+  animation: auth-video-reveal 420ms ease-out 80ms forwards;
 }
 
 .auth-sky::before,
@@ -546,6 +555,15 @@ input {
   100% {
     background-position: 50% 22%, 50% 22%;
     filter: brightness(0.82) saturate(1.02) contrast(1.03);
+  }
+}
+
+@keyframes auth-video-reveal {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
   }
 }
 

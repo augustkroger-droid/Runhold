@@ -1,4 +1,4 @@
-const INTERNAL_AUTH_DOMAIN = "users.runhold.app";
+export const MIN_USERNAME_LENGTH = 4;
 
 export function normalizeUsername(username: string): string {
   return username
@@ -10,8 +10,12 @@ export function normalizeUsername(username: string): string {
     .replace(/[^a-z0-9._-]/g, "");
 }
 
-export function usernameToAuthEmail(username: string): string {
-  return `${normalizeUsername(username)}@${INTERNAL_AUTH_DOMAIN}`;
+export function isValidUsername(username: string): boolean {
+  return normalizeUsername(username).length >= MIN_USERNAME_LENGTH;
+}
+
+export function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 }
 
 export function isStrongPassword(password: string): boolean {

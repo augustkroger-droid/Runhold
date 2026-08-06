@@ -1,9 +1,14 @@
 "use client";
 
-import { AlertCircle, Lock, LogIn, ShieldCheck, User, UserPlus } from "lucide-react";
+import { AlertCircle, Lock, LogIn, Mail, ShieldCheck, User, UserPlus } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
 import { EmberCanvas } from "@/components/auth/ember-canvas";
-import { isStrongPassword, normalizeUsername, usernameToAuthEmail } from "@/lib/auth/username";
+import {
+  MIN_USERNAME_LENGTH,
+  isStrongPassword,
+  isValidEmail,
+  normalizeUsername,
+} from "@/lib/auth/username";
 import { getSupabaseClient } from "@/lib/supabase/client";
 
 type AuthMode = "login" | "signup" | "forgot";
@@ -14,6 +19,7 @@ export function LoginScreen({
   onSignedIn: (session: { userId: string; username: string }) => void;
 }) {
   const [mode, setMode] = useState<AuthMode>("login");
+  const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -31,6 +37,12 @@ export function LoginScreen({
     return () => window.clearTimeout(timer);
   }, []);
 
+  function changeMode(nextMode: AuthMode) {
+    setMode(nextMode);
+    setError(null);
+    setMessage(null);
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
@@ -38,8 +50,8 @@ export function LoginScreen({
 
     const cleanUsername = normalizeUsername(username);
 
-    if (!cleanUsername || cleanUsername.length < 3) {
-      setError("Användarnamnet behöver vara minst 3 tecken.");
+    if (!cleanUsername || cleanUsername.length < MIN_USERNAME_LENGTH) {
+      setError(`Användarnamnet behöver vara minst ${MIN_USERNAME_LENGTH} tecken.`);
       return;
     }
 
@@ -47,6 +59,13 @@ export function LoginScreen({
       setMessage(
         "Återställning är inte aktiverad ännu. Nästa steg blir att koppla detta till mailutskick.",
       );
+      return;
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+
+    if (isSignup && !isValidEmail(cleanEmail)) {
+      setError("Skriv in en giltig emailadress.");
       return;
     }
 
@@ -64,11 +83,23 @@ export function LoginScreen({
 
     try {
       const supabase = getSupabaseClient();
-      const email = usernameToAuthEmail(cleanUsername);
+      let authEmail = cleanEmail;
 
       if (isSignup) {
+        const { data: isAvailable, error: availabilityError } = await supabase.rpc(
+          "is_username_available",
+          { input_username: cleanUsername },
+        );
+
+        if (availabilityError) throw availabilityError;
+
+        if (isAvailable !== true) {
+          setError("Användarnamnet finns redan. Välj ett annat användarnamn.");
+          return;
+        }
+
         const { data, error: signupError } = await supabase.auth.signUp({
-          email,
+          email: authEmail,
           password,
           options: {
             data: {
@@ -86,7 +117,7 @@ export function LoginScreen({
 
         const { data: loginData, error: loginError } =
           await supabase.auth.signInWithPassword({
-            email,
+            email: authEmail,
             password,
           });
 
@@ -101,10 +132,24 @@ export function LoginScreen({
           onSignedIn({ userId: loginData.user.id, username: cleanUsername });
           return;
         }
+      } else {
+        const { data: resolvedEmail, error: resolveError } = await supabase.rpc(
+          "resolve_login_email",
+          { input_username: cleanUsername },
+        );
+
+        if (resolveError) throw resolveError;
+
+        if (typeof resolvedEmail !== "string" || !resolvedEmail) {
+          setError("Hittar inget konto med det användarnamnet.");
+          return;
+        }
+
+        authEmail = resolvedEmail;
       }
 
       const { data, error: loginError } = await supabase.auth.signInWithPassword({
-        email,
+        email: authEmail,
         password,
       });
 
@@ -120,10 +165,23 @@ export function LoginScreen({
         });
       }
     } catch (authError) {
+      const authMessage =
+        authError instanceof Error ? authError.message : "Kunde inte logga in just nu.";
+
+      if (/USERNAME_TAKEN/i.test(authMessage)) {
+        setError("Användarnamnet finns redan. Välj ett annat användarnamn.");
+        return;
+      }
+
+      if (/already registered|User already registered/i.test(authMessage)) {
+        setError("Emailadressen finns redan. Logga in eller använd en annan emailadress.");
+        return;
+      }
+
       setError(
-        authError instanceof Error
-          ? authError.message
-          : "Kunde inte logga in just nu.",
+        authMessage.includes("Invalid login credentials")
+          ? "Fel användarnamn eller lösenord."
+          : authMessage,
       );
     } finally {
       setBusy(false);
@@ -176,6 +234,24 @@ export function LoginScreen({
         </div>
 
         <form className="auth-form" onSubmit={handleSubmit}>
+          {isSignup ? (
+            <label>
+              <span>Email</span>
+              <div className="auth-input">
+                <Mail aria-hidden="true" size={19} />
+                <input
+                  autoCapitalize="none"
+                  autoComplete="email"
+                  inputMode="email"
+                  placeholder="du@example.com"
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                />
+              </div>
+            </label>
+          ) : null}
+
           <label>
             <span>Användarnamn</span>
             <div className="auth-input">
@@ -184,7 +260,7 @@ export function LoginScreen({
                 autoCapitalize="none"
                 autoComplete="username"
                 inputMode="text"
-                minLength={3}
+                minLength={MIN_USERNAME_LENGTH}
                 placeholder="dittnamn"
                 value={username}
                 onChange={(event) => setUsername(event.target.value)}
@@ -211,8 +287,9 @@ export function LoginScreen({
 
           {isSignup ? (
             <p className="auth-note">
-              Lösenordet behöver minst 10 tecken och minst en siffra. Supabase
-              lagrar lösenordet säkert, inte i appens egen kod.
+              Användarnamn behöver minst {MIN_USERNAME_LENGTH} tecken. Lösenordet
+              behöver minst 10 tecken och minst en siffra. Supabase lagrar
+              lösenordet säkert, inte i appens egen kod.
             </p>
           ) : null}
 
@@ -231,7 +308,11 @@ export function LoginScreen({
           ) : null}
 
           <button className="auth-primary" disabled={busy} type="submit">
-            {isSignup ? <UserPlus aria-hidden="true" size={20} /> : <LogIn aria-hidden="true" size={20} />}
+            {isSignup ? (
+              <UserPlus aria-hidden="true" size={20} />
+            ) : (
+              <LogIn aria-hidden="true" size={20} />
+            )}
             {busy
               ? "Arbetar..."
               : isSignup
@@ -244,15 +325,15 @@ export function LoginScreen({
 
         <div className="auth-actions">
           {mode !== "login" ? (
-            <button type="button" onClick={() => setMode("login")}>
+            <button type="button" onClick={() => changeMode("login")}>
               Jag har redan konto
             </button>
           ) : (
-            <button type="button" onClick={() => setMode("signup")}>
+            <button type="button" onClick={() => changeMode("signup")}>
               Skapa nytt konto
             </button>
           )}
-          <button type="button" onClick={() => setMode("forgot")}>
+          <button type="button" onClick={() => changeMode("forgot")}>
             Glömt lösenord?
           </button>
         </div>

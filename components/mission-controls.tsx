@@ -44,12 +44,12 @@ export function MissionControls({
             ) : (
               <MapPinned aria-hidden="true" size={20} />
             )}
-            {creatingDestination ? "Letar gångvänligt mål..." : "Slumpa mål på gångväg 500 m bort"}
+            {creatingDestination ? "Letar mål..." : "Slumpa mål cirka 500 m bort"}
           </button>
           <p className="text-sm leading-6 text-[#c9d4d0]">
-            Appen försöker hitta en OpenStreetMap-punkt på en gångbar väg cirka
-            500 meter från start. Om det inte går skapas ett vanligt 500-metersmål.
-            Du kan fortfarande flytta målet genom att trycka på kartan.
+            Appen försöker hitta en OpenStreetMap-punkt nära gångbar väg. Om det
+            inte fungerar skapas ett vanligt 500-metersmål. Du kan alltid flytta
+            målet genom att trycka på kartan.
           </p>
           {outsideRange ? (
             <p className="rounded-md border border-[#f5b84b]/50 bg-[#3d3017] p-3 text-sm text-[#ffe6ad]">
@@ -63,7 +63,7 @@ export function MissionControls({
             disabled={!canStart || starting}
           >
             <Play aria-hidden="true" size={21} />
-            {starting ? "Startar..." : "Starta hämta-och-vänd"}
+            {starting ? "Startar..." : "Starta hämta-uppdrag"}
           </button>
         </div>
       ) : null}

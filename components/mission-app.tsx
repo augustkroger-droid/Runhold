@@ -20,7 +20,6 @@ import type { Coordinate, MissionStatus } from "@/lib/types/mission";
 const REACH_RADIUS_M = 20;
 const MAX_PING_ACCURACY_M = 40;
 const DESTINATION_POINTS = 50;
-const RETURN_POINTS = 50;
 const ACCURACY_BONUS_POINTS = 10;
 
 function formatDuration(from: number | null, to: number | null): string {
@@ -67,7 +66,6 @@ export function MissionApp() {
   const [destinationReachedAt, setDestinationReachedAt] = useState<number | null>(null);
   const [completedAt, setCompletedAt] = useState<number | null>(null);
   const [destinationPingAccuracyM, setDestinationPingAccuracyM] = useState<number | null>(null);
-  const [returnPingAccuracyM, setReturnPingAccuracyM] = useState<number | null>(null);
   const [missionScore, setMissionScore] = useState(0);
   const [totalScore, setTotalScore] = useState(() => {
     if (typeof window === "undefined") return 0;
@@ -112,9 +110,10 @@ export function MissionApp() {
 
   const activeDistanceM = useMemo(() => {
     if (!current || !start) return null;
-    if (status === "returning" || status === "completed") {
+    if (status === "returning") {
       return haversineDistanceMeters(current, start);
     }
+    if (status === "completed") return 0;
     if (!destination) return null;
     return haversineDistanceMeters(current, destination);
   }, [current, destination, start, status]);
@@ -186,23 +185,34 @@ export function MissionApp() {
 
   const handleReachedDestination = useCallback(
     async (reading: GeoReading) => {
+      const now = Date.now();
+      const timestamp = new Date().toISOString();
       const earnedPoints = pointsForPing(DESTINATION_POINTS, reading.accuracyM);
-      setStatus("destination_reached");
-      setDestinationReachedAt(Date.now());
+      setStatus("completed");
+      setDestinationReachedAt(now);
+      setCompletedAt(now);
       setDestinationPingAccuracyM(reading.accuracyM);
       setMissionScore((previousScore) => {
         const nextScore = previousScore + earnedPoints;
         missionScoreRef.current = nextScore;
         return nextScore;
       });
+      setTotalScore((previousTotal) => {
+        const nextTotal = previousTotal + earnedPoints;
+        window.localStorage.setItem("runhold-total-score", String(nextTotal));
+        return nextTotal;
+      });
       setOverlay(`Målet hämtat! +${earnedPoints} poäng`);
       playPing();
+      stopWatch();
+      await releaseWakeLock();
 
       if (missionIdRef.current) {
         try {
           await updateMission(missionIdRef.current, {
-            status: "destination_reached",
-            destination_reached_at: new Date().toISOString(),
+            status: "completed",
+            destination_reached_at: timestamp,
+            completed_at: timestamp,
             destination_accuracy_m: reading.accuracyM,
           });
         } catch (error) {
@@ -214,17 +224,16 @@ export function MissionApp() {
         }
       }
     },
-    [playPing, updateMission],
+    [playPing, releaseWakeLock, stopWatch, updateMission],
   );
 
   const handleCompleted = useCallback(
     async (reading: GeoReading) => {
       const now = Date.now();
-      const earnedPoints = pointsForPing(RETURN_POINTS, reading.accuracyM);
+      const earnedPoints = pointsForPing(DESTINATION_POINTS, reading.accuracyM);
       const completedMissionScore = missionScoreRef.current + earnedPoints;
       setStatus("completed");
       setCompletedAt(now);
-      setReturnPingAccuracyM(reading.accuracyM);
       setMissionScore(completedMissionScore);
       setTotalScore((previousTotal) => {
         const nextTotal = previousTotal + completedMissionScore;
@@ -368,14 +377,9 @@ export function MissionApp() {
 
     try {
       await initializeAudio();
-      const mission = await createMission({
-        start,
-        destination,
-        plannedDistanceM,
-      });
-      setMissionId(mission.id);
       setStartedAt(Date.now());
       setStatus("outbound");
+      setMessage("Uppdraget är igång. Gå till målet och håll appen öppen.");
       outboundStreakRef.current = 0;
       returnStreakRef.current = 0;
       startWatch({
@@ -384,6 +388,21 @@ export function MissionApp() {
           setPersistenceError(error);
         },
       });
+
+      try {
+        const mission = await createMission({
+          start,
+          destination,
+          plannedDistanceM,
+        });
+        setMissionId(mission.id);
+      } catch (error) {
+        setPersistenceError(
+          error instanceof Error
+            ? `Uppdraget kör lokalt, men kunde inte sparas i Supabase: ${error.message}`
+            : "Uppdraget kör lokalt, men kunde inte sparas i Supabase.",
+        );
+      }
     } catch (error) {
       setPersistenceError(
         error instanceof Error ? error.message : "Kunde inte starta uppdraget.",
@@ -450,7 +469,6 @@ export function MissionApp() {
     setDestinationReachedAt(null);
     setCompletedAt(null);
     setDestinationPingAccuracyM(null);
-    setReturnPingAccuracyM(null);
     setMissionScore(0);
     missionScoreRef.current = 0;
     outboundStreakRef.current = 0;
@@ -534,7 +552,7 @@ export function MissionApp() {
                 Belöning
               </p>
               <p className="mt-1 text-sm leading-5 text-[#d7e1dd]">
-                +50 vid mål, +50 hemma. +10 bonus vid GPS under 20 m.
+                +50 när du hämtar målet. +10 bonus vid GPS under 20 m.
               </p>
             </div>
           </section>
@@ -555,7 +573,7 @@ export function MissionApp() {
             onBeginReturn={beginReturn}
             onCancel={cancelMission}
             onReset={reset}
-            starting={starting || sessionLoading}
+            starting={starting}
           />
         </div>
       )}
@@ -581,12 +599,6 @@ export function MissionApp() {
               </dd>
             </div>
             <div className="rounded-md bg-[#0f211c] p-3">
-              <dt className="text-[#a9cfc3]">Tid tillbaka</dt>
-              <dd className="mt-1 text-lg font-black text-white">
-                {formatDuration(destinationReachedAt, completedAt)}
-              </dd>
-            </div>
-            <div className="rounded-md bg-[#0f211c] p-3">
               <dt className="text-[#a9cfc3]">Total tid</dt>
               <dd className="mt-1 text-lg font-black text-white">
                 {formatDuration(startedAt, completedAt)}
@@ -596,12 +608,6 @@ export function MissionApp() {
               <dt className="text-[#a9cfc3]">GPS vid mål</dt>
               <dd className="mt-1 text-lg font-black text-white">
                 {destinationPingAccuracyM ? Math.round(destinationPingAccuracyM) : "--"} m
-              </dd>
-            </div>
-            <div className="rounded-md bg-[#0f211c] p-3">
-              <dt className="text-[#a9cfc3]">GPS vid retur</dt>
-              <dd className="mt-1 text-lg font-black text-white">
-                {returnPingAccuracyM ? Math.round(returnPingAccuracyM) : "--"} m
               </dd>
             </div>
           </dl>

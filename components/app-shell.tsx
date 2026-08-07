@@ -116,6 +116,7 @@ export function AppShell() {
   return (
     <>
       <MissionApp
+        gameProfile={profile}
         userId={authState.userId}
         username={authState.username ?? "spelare"}
         onSignOut={handleSignOut}

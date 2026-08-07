@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bug, Info, LogOut, Satellite, Trophy } from "lucide-react";
+import { AppBottomNav, type AppTabId } from "@/components/app-bottom-nav";
 import { BaseOverview } from "@/components/base/base-overview";
 import { LocationPermissionCard } from "@/components/location-permission-card";
 import { ResourceInventory } from "@/components/inventory/resource-inventory";
@@ -9,6 +10,7 @@ import { MapLoader } from "@/components/map/map-loader";
 import { MissionControls } from "@/components/mission-controls";
 import { MissionStatusPanel } from "@/components/mission-status";
 import { PingOverlay } from "@/components/ping-overlay";
+import { ProfileOverview } from "@/components/profile/profile-overview";
 import { type GeoReading, useGeolocationWatch } from "@/hooks/use-geolocation-watch";
 import { useMissionPersistence } from "@/hooks/use-mission";
 import { createWalkableDestination } from "@/lib/geo/walkable-destination";
@@ -17,6 +19,7 @@ import {
   updateReachStreak,
 } from "@/lib/geo/haversine";
 import type { Coordinate } from "@/lib/game/gps/position";
+import type { PlayerGameProfile } from "@/lib/game/state/player-profile";
 import type { MissionStatus } from "@/lib/types/mission";
 
 const REACH_RADIUS_M = 20;
@@ -49,10 +52,12 @@ function pointsForPing(basePoints: number, accuracyM: number): number {
 }
 
 export function MissionApp({
+  gameProfile,
   userId,
   username,
   onSignOut,
 }: {
+  gameProfile: PlayerGameProfile;
   userId: string;
   username: string;
   onSignOut: () => void;
@@ -75,6 +80,7 @@ export function MissionApp({
   const [destinationReachedAt, setDestinationReachedAt] = useState<number | null>(null);
   const [completedAt, setCompletedAt] = useState<number | null>(null);
   const [destinationPingAccuracyM, setDestinationPingAccuracyM] = useState<number | null>(null);
+  const [activeTab, setActiveTab] = useState<AppTabId>("base");
   const [missionScore, setMissionScore] = useState(0);
   const [totalScore, setTotalScore] = useState(() => {
     if (typeof window === "undefined") return 0;
@@ -500,40 +506,8 @@ export function MissionApp({
   const canSelectDestination = status === "selecting_destination" || status === "ready";
   const showMap = Boolean(start);
 
-  return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col gap-4 px-4 py-5">
-      <header className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#43d9ad]">
-            {username}
-          </p>
-          <h1 className="text-3xl font-black text-white">Runhold</h1>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="rounded-md border border-[#f5b84b]/40 bg-[#2b2414] px-3 py-2 text-right">
-            <div className="flex items-center gap-1 text-xs font-bold uppercase tracking-[0.12em] text-[#f5b84b]">
-              <Trophy aria-hidden="true" size={14} />
-              Poäng
-            </div>
-            <p className="text-lg font-black text-white">{totalScore}</p>
-          </div>
-          <div className="grid size-11 place-items-center rounded-full bg-[#22303b] text-[#43d9ad]">
-            <Satellite aria-hidden="true" size={24} />
-          </div>
-          <button
-            type="button"
-            className="grid size-11 place-items-center rounded-full bg-[#22303b] text-[#c9d4d0]"
-            aria-label="Logga ut"
-            onClick={onSignOut}
-          >
-            <LogOut aria-hidden="true" size={20} />
-          </button>
-        </div>
-      </header>
-
-      <BaseOverview userId={userId} />
-      <ResourceInventory userId={userId} />
-
+  const expeditionView = (
+    <>
       {!showMap ? (
         <LocationPermissionCard loading={status === "locating"} onLocate={locateStart} />
       ) : (
@@ -692,8 +666,53 @@ export function MissionApp({
           </div>
         </section>
       ) : null}
+    </>
+  );
+
+  return (
+    <main className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col gap-4 px-4 pb-24 pt-5">
+      <header className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#43d9ad]">
+            {username}
+          </p>
+          <h1 className="text-3xl font-black text-white">Runhold</h1>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="rounded-md border border-[#f5b84b]/40 bg-[#2b2414] px-3 py-2 text-right">
+            <div className="flex items-center gap-1 text-xs font-bold uppercase tracking-[0.12em] text-[#f5b84b]">
+              <Trophy aria-hidden="true" size={14} />
+              Poäng
+            </div>
+            <p className="text-lg font-black text-white">{totalScore}</p>
+          </div>
+          <div className="grid size-11 place-items-center rounded-full bg-[#22303b] text-[#43d9ad]">
+            <Satellite aria-hidden="true" size={24} />
+          </div>
+          <button
+            type="button"
+            className="grid size-11 place-items-center rounded-full bg-[#22303b] text-[#c9d4d0]"
+            aria-label="Logga ut"
+            onClick={onSignOut}
+          >
+            <LogOut aria-hidden="true" size={20} />
+          </button>
+        </div>
+      </header>
+
+      {activeTab === "base" ? <BaseOverview userId={userId} /> : null}
+      {activeTab === "expedition" ? expeditionView : null}
+      {activeTab === "inventory" ? <ResourceInventory userId={userId} /> : null}
+      {activeTab === "profile" ? (
+        <ProfileOverview
+          profile={gameProfile}
+          username={username}
+          onSignOut={onSignOut}
+        />
+      ) : null}
 
       <PingOverlay message={overlay} onDismiss={() => setOverlay(null)} />
+      <AppBottomNav activeTab={activeTab} onTabChange={setActiveTab} />
     </main>
   );
 }

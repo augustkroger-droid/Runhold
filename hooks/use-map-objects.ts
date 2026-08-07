@@ -3,7 +3,15 @@
 import { useCallback, useState } from "react";
 import { MAP_OBJECT_CONFIG } from "@/lib/game/definitions/map-objects";
 import type { Coordinate } from "@/lib/game/gps/position";
-import type { WalkableCandidate, WalkablePath } from "@/lib/geo/walkable-candidates";
+import {
+  buildWalkableOverpassQuery,
+  parseWalkableCandidates,
+  parseWalkablePaths,
+  type OverpassResponse,
+  type WalkableCandidate,
+  type WalkableOverpassMode,
+  type WalkablePath,
+} from "@/lib/geo/walkable-candidates";
 import {
   type PlayerMapObject,
   type PlayerMapObjectRow,
@@ -19,6 +27,15 @@ type WalkableCandidateResponse = {
 };
 
 const walkableCandidateTimeoutMs = 12_000;
+const directOverpassTimeoutMs = 6_000;
+const directOverpassUrls = [
+  "https://overpass-api.de/api/interpreter",
+  "https://overpass.kumi.systems/api/interpreter",
+];
+const directOverpassModes: readonly WalkableOverpassMode[] = [
+  "strict",
+  "public-road",
+];
 
 function mapObjectErrorMessage(message: string): string {
   if (/MAP_OBJECT_NOT_FOUND/i.test(message)) {
@@ -38,6 +55,89 @@ function mapObjectErrorMessage(message: string): string {
   }
 
   return message;
+}
+
+function cleanWalkableCandidates(candidates: WalkableCandidate[]): WalkableCandidate[] {
+  return candidates.filter(
+    (candidate) =>
+      Number.isFinite(candidate.lat) &&
+      Number.isFinite(candidate.lng) &&
+      Math.abs(candidate.lat) <= 90 &&
+      Math.abs(candidate.lng) <= 180,
+  );
+}
+
+function cleanWalkablePaths(paths: WalkablePath[]): WalkablePath[] {
+  return paths.filter((path) => path.points.length >= 2);
+}
+
+async function fetchDirectOverpassData(
+  overpassUrl: string,
+  query: string,
+): Promise<OverpassResponse | null> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), directOverpassTimeoutMs);
+
+  try {
+    const response = await fetch(overpassUrl, {
+      method: "POST",
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({ data: query }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) return null;
+
+    return response.json() as Promise<OverpassResponse>;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+async function fetchDirectWalkableCandidates({
+  center,
+  radiusM,
+}: {
+  center: Coordinate;
+  radiusM: number;
+}): Promise<WalkableCandidateResponse> {
+  const queryRadiiM = Array.from(
+    new Set([Math.min(radiusM, 1200), Math.min(radiusM, 2000), radiusM]),
+  ).filter((nextRadiusM) => nextRadiusM >= 250 && nextRadiusM <= radiusM);
+
+  for (const queryRadiusM of queryRadiiM) {
+    for (const queryMode of directOverpassModes) {
+      const query = buildWalkableOverpassQuery(center, queryRadiusM, queryMode);
+      const results = await Promise.all(
+        directOverpassUrls.map((overpassUrl) =>
+          fetchDirectOverpassData(overpassUrl, query),
+        ),
+      );
+
+      for (const data of results) {
+        if (!data) continue;
+
+        const candidates = cleanWalkableCandidates(
+          parseWalkableCandidates(data, center, queryRadiusM),
+        );
+
+        if (candidates.length === 0) continue;
+
+        return {
+          candidates,
+          paths: cleanWalkablePaths(parseWalkablePaths(data, center, queryRadiusM)),
+          source: `direct-overpass-${queryMode}`,
+          radiusM: queryRadiusM,
+        };
+      }
+    }
+  }
+
+  return { candidates: [], paths: [], source: "direct-overpass-empty", radiusM };
 }
 
 async function fetchWalkableCandidates({
@@ -71,20 +171,20 @@ async function fetchWalkableCandidates({
       radiusM?: number;
     };
 
-    return {
-      candidates: (data.candidates ?? []).filter(
-        (candidate) =>
-          Number.isFinite(candidate.lat) &&
-          Number.isFinite(candidate.lng) &&
-          Math.abs(candidate.lat) <= 90 &&
-          Math.abs(candidate.lng) <= 180,
-      ),
-      paths: (data.paths ?? []).filter((path) => path.points.length >= 2),
+    const apiResult = {
+      candidates: cleanWalkableCandidates(data.candidates ?? []),
+      paths: cleanWalkablePaths(data.paths ?? []),
       source: data.source ?? "unknown",
       radiusM: data.radiusM ?? radiusM,
     };
+
+    if (apiResult.candidates.length > 0) {
+      return apiResult;
+    }
+
+    return fetchDirectWalkableCandidates({ center, radiusM });
   } catch {
-    return { candidates: [], paths: [], source: "walkable-api-error", radiusM };
+    return fetchDirectWalkableCandidates({ center, radiusM });
   } finally {
     clearTimeout(timeoutId);
   }

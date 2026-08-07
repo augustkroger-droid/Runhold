@@ -15,7 +15,7 @@ type OverpassElement = {
   geometry?: Coordinate[];
 };
 
-type OverpassResponse = {
+export type OverpassResponse = {
   elements?: OverpassElement[];
 };
 

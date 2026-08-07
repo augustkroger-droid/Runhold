@@ -389,12 +389,13 @@ export function ExpeditionView({
 
   const runScan = useCallback(
     async (center: Coordinate, { silent = false }: { silent?: boolean } = {}) => {
+      setScanActive(true);
+
       try {
         const scannedObjects = await scanObjects({
           center,
           scanRadiusM: scannerRadiusM,
         });
-        setScanActive(true);
 
         if (!silent) {
           setMessage(

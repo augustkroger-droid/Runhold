@@ -26,6 +26,20 @@ describe("walkable candidates", () => {
     expect(query).toContain('"foot"!~"^(private|no)$"');
   });
 
+  it("can broaden to public roads without allowing major unsafe roads", () => {
+    const query = buildWalkableOverpassQuery(
+      { lat: 57.78, lng: 14.16 },
+      1000,
+      "public-road",
+    );
+
+    expect(query).toContain('["highway"]');
+    expect(query).toContain("motorway");
+    expect(query).toContain("primary");
+    expect(query).toContain('"access"!~"^(private|no)$"');
+    expect(query).not.toContain('"highway"~"^(footway');
+  });
+
   it("samples points from Overpass way geometry", () => {
     const candidates = parseWalkableCandidates(
       {

@@ -1,4 +1,4 @@
-const CACHE_NAME = "runhold-static-v2";
+const CACHE_NAME = "runhold-static-v3";
 const STATIC_ASSETS = [
   "/",
   "/offline.html",
@@ -28,6 +28,11 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
 
   if (url.hostname.includes("tile.openstreetmap.org")) {
+    return;
+  }
+
+  if (url.origin === self.location.origin && url.pathname.startsWith("/api/")) {
+    event.respondWith(fetch(event.request));
     return;
   }
 

@@ -14,6 +14,8 @@ type OverpassResponse = {
   elements?: OverpassElement[];
 };
 
+type WalkableOverpassMode = "strict" | "public-road";
+
 const allowedHighways = [
   "footway",
   "path",
@@ -28,6 +30,8 @@ const allowedHighways = [
   "steps",
 ] as const;
 
+const blockedHighwayPattern =
+  "^(motorway|motorway_link|trunk|trunk_link|primary|primary_link|construction|raceway)$";
 const blockedAccessPattern = "^(private|no)$";
 const blockedServicePattern = "^(driveway|parking_aisle)$";
 const sampleSpacingM = 90;
@@ -44,15 +48,23 @@ export function boundingBoxForRadius(center: Coordinate, radiusM: number) {
   };
 }
 
-export function buildWalkableOverpassQuery(center: Coordinate, radiusM: number): string {
+export function buildWalkableOverpassQuery(
+  center: Coordinate,
+  radiusM: number,
+  mode: WalkableOverpassMode = "strict",
+): string {
   const highways = allowedHighways.join("|");
   const roundedRadiusM = Math.round(radiusM);
+  const highwayFilter =
+    mode === "strict"
+      ? `["highway"~"^(${highways})$"]`
+      : `["highway"]["highway"!~"${blockedHighwayPattern}"]`;
 
   return `
 [out:json][timeout:6];
 (
   way
-    ["highway"~"^(${highways})$"]
+    ${highwayFilter}
     ["access"!~"${blockedAccessPattern}"]
     ["foot"!~"${blockedAccessPattern}"]
     ["service"!~"${blockedServicePattern}"]

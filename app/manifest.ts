@@ -2,9 +2,9 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Runhold GPS-test",
+    name: "Runhold",
     short_name: "Runhold",
-    description: "Mobilt GPS-test med mål, retur och Supabase-sparning.",
+    description: "Runhold: gå på uppdrag, samla resurser och bygg ditt läger.",
     start_url: "/",
     scope: "/",
     display: "standalone",

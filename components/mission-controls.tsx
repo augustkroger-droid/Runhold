@@ -53,7 +53,7 @@ export function MissionControls({
           </p>
           {outsideRange ? (
             <p className="rounded-md border border-[#f5b84b]/50 bg-[#3d3017] p-3 text-sm text-[#ffe6ad]">
-              Målet bör ligga mellan 400 och 600 meter bort för testet.
+              Målet bör ligga mellan 400 och 600 meter bort.
             </p>
           ) : null}
           <button

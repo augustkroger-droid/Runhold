@@ -25,6 +25,10 @@ function campfireErrorMessage(message: string): string {
     return "Välj en giltig mängd trä.";
   }
 
+  if (/CAMPFIRE_FULL/i.test(message)) {
+    return "Elden är redan fullt påfylld.";
+  }
+
   if (/permission denied/i.test(message)) {
     return "Supabase saknar rättigheter för lägerelden. Kör senaste SQL-migrationen.";
   }

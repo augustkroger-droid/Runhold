@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { getCampfireSnapshot } from "@/lib/game/systems/campfire";
+import {
+  formatCampfireRemaining,
+  getCampfireCapacitySnapshot,
+  getCampfireSnapshot,
+} from "@/lib/game/systems/campfire";
 
 describe("campfire system", () => {
   it("treats expired fire as not burning", () => {
@@ -28,5 +32,24 @@ describe("campfire system", () => {
 
     expect(snapshot.isBurning).toBe(true);
     expect(snapshot.timer?.remainingMs).toBe(900_000);
+  });
+
+  it("tracks burn bar as remaining capacity", () => {
+    expect(
+      getCampfireCapacitySnapshot(
+        { burnUntil: "2026-08-07T22:00:00.000Z" },
+        "2026-08-07T10:00:00.000Z",
+      ),
+    ).toMatchObject({
+      remainingMs: 43_200_000,
+      maxMs: 86_400_000,
+      fillRatio: 0.5,
+      woodNeededToFill: 72,
+    });
+  });
+
+  it("formats campfire time without seconds", () => {
+    expect(formatCampfireRemaining(65 * 60_000)).toBe("1h 05m");
+    expect(formatCampfireRemaining(25 * 60 * 60_000)).toBe("1d 1h");
   });
 });

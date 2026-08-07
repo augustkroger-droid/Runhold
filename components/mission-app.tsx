@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bug, Info, LogOut, Satellite, Trophy } from "lucide-react";
 import { AppBottomNav, type AppTabId } from "@/components/app-bottom-nav";
 import { BaseOverview } from "@/components/base/base-overview";
-import { CampfirePanel } from "@/components/base/campfire-panel";
 import { LocationPermissionCard } from "@/components/location-permission-card";
 import { ResourceInventory } from "@/components/inventory/resource-inventory";
 import { MapLoader } from "@/components/map/map-loader";
@@ -612,10 +611,10 @@ export function MissionApp({
       <section className="rounded-lg border border-white/10 bg-[#18232d] p-4 text-sm leading-6 text-[#c9d4d0]">
         <div className="flex items-center gap-2 font-bold text-white">
           <Info aria-hidden="true" size={18} />
-          Testvillkor
+          Uppdrag
         </div>
         <p className="mt-2">
-          Håll appen öppen och skärmen aktiv under testet. Mobilens webbläsare kan
+          Håll appen öppen och skärmen aktiv under uppdraget. Mobilens webbläsare kan
           pausa GPS-spårning när appen ligger i bakgrunden eller skärmen är låst.
         </p>
         <p className="mt-2">
@@ -627,7 +626,7 @@ export function MissionApp({
       <section className="rounded-lg border border-white/10 bg-[#18232d] p-4 text-sm leading-6 text-[#c9d4d0]">
         <h2 className="font-bold text-white">Integritet</h2>
         <p className="mt-2">
-          GPS används endast när du själv startar testet. Kontinuerliga GPS-punkter
+          GPS används endast när du själv startar ett uppdrag. Kontinuerliga GPS-punkter
           sparas inte. Endast uppdragets startpunkt, destination och resultat sparas.
           Du kan avbryta när som helst.
         </p>
@@ -702,10 +701,7 @@ export function MissionApp({
       </header>
 
       {activeTab === "base" ? (
-        <>
-          <BaseOverview userId={userId} />
-          <CampfirePanel userId={userId} />
-        </>
+        <BaseOverview userId={userId} />
       ) : null}
       {activeTab === "expedition" ? expeditionView : null}
       {activeTab === "inventory" ? <ResourceInventory userId={userId} /> : null}

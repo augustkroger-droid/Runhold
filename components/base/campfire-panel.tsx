@@ -3,18 +3,30 @@
 import { Flame, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { CAMPFIRE_CONFIG } from "@/lib/game/definitions/campfire";
-import { getCampfireSnapshot } from "@/lib/game/systems/campfire";
-import { formatRemainingDuration } from "@/lib/game/systems/timers";
-import { usePlayerCampfire } from "@/hooks/use-player-campfire";
+import {
+  formatCampfireRemaining,
+  getCampfireCapacitySnapshot,
+  getCampfireSnapshot,
+} from "@/lib/game/systems/campfire";
+import type { PlayerCampfire } from "@/lib/game/state/player-campfire";
 
-export function CampfirePanel({ userId }: { userId: string }) {
-  const { campfire, loading, error, fueling, fuelCampfire } =
-    usePlayerCampfire(userId);
+export function CampfirePanel({
+  campfire,
+  loading,
+  error,
+  fueling,
+  fuelCampfire,
+}: {
+  campfire: PlayerCampfire;
+  loading: boolean;
+  error: string | null;
+  fueling: boolean;
+  fuelCampfire: (woodAmount: number) => Promise<void>;
+}) {
   const [now, setNow] = useState(() => new Date().toISOString());
   const [localError, setLocalError] = useState<string | null>(null);
   const snapshot = getCampfireSnapshot(campfire, now);
-  const remainingMs = snapshot.timer?.remainingMs ?? 0;
-  const progress = snapshot.timer?.progress ?? 0;
+  const capacity = getCampfireCapacitySnapshot(campfire, now);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -61,22 +73,22 @@ export function CampfirePanel({ userId }: { userId: string }) {
         <div className="flex items-center justify-between gap-3">
           <span className="text-sm font-bold text-[#aeb9b6]">Återstående tid</span>
           <span className="text-lg font-black text-white">
-            {snapshot.isBurning ? formatRemainingDuration(remainingMs) : "0s"}
+            {formatCampfireRemaining(capacity.remainingMs)}
           </span>
         </div>
         <div className="mt-3 h-2 overflow-hidden rounded-full bg-black/30">
           <div
             className="h-full rounded-full bg-[#f5b84b]"
-            style={{ width: `${Math.round(progress * 100)}%` }}
+            style={{ width: `${Math.round(capacity.fillRatio * 100)}%` }}
           />
         </div>
         <p className="mt-2 text-xs leading-5 text-[#aeb9b6]">
-          1 trä ger {CAMPFIRE_CONFIG.burnMinutesPerWood} minuter brinntid.
-          Elden kan inte skadas i nuvarande version.
+          1 trä ger {CAMPFIRE_CONFIG.burnMinutesPerWood} minuter brinntid. Max{" "}
+          {CAMPFIRE_CONFIG.maxBurnHours} timmar.
         </p>
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-2">
+      <div className="mt-3 grid grid-cols-3 gap-2">
         {CAMPFIRE_CONFIG.quickFuelOptions.map((woodAmount) => (
           <button
             key={woodAmount}
@@ -89,6 +101,15 @@ export function CampfirePanel({ userId }: { userId: string }) {
             {woodAmount} trä
           </button>
         ))}
+        <button
+          type="button"
+          className="flex min-h-11 items-center justify-center gap-2 rounded-md bg-[#5f4b24] px-3 font-black text-white disabled:cursor-wait disabled:opacity-60"
+          disabled={loading || fueling || capacity.woodNeededToFill <= 0}
+          onClick={() => handleFuel(capacity.woodNeededToFill)}
+        >
+          <Plus aria-hidden="true" size={18} />
+          Full
+        </button>
       </div>
 
       {error || localError ? (

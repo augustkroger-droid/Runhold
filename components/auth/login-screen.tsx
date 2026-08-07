@@ -123,7 +123,7 @@ export function LoginScreen({
 
         if (loginError) {
           setMessage(
-            "Kontot skapades, men Supabase kräver bekräftelse innan inloggning. För testläget: stäng av email confirmation i Supabase Auth.",
+            "Kontot skapades, men behöver bekräftas innan du kan logga in.",
           );
           return;
         }
@@ -180,7 +180,7 @@ export function LoginScreen({
 
       if (/email rate limit exceeded|rate limit/i.test(authMessage)) {
         setError(
-          "Supabase försöker skicka verifieringsmail och har nått sin emailgräns. Stäng av email confirmation i Supabase för testläget, eller vänta tills gränsen släpper.",
+          "Det går inte att skapa fler konton just nu. Vänta en stund och försök igen.",
         );
         return;
       }

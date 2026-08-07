@@ -1,12 +1,19 @@
 "use client";
 
 import { Flame, Home, Shield, Tent } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { CampfirePanel } from "@/components/base/campfire-panel";
+import { ConstructionPanel } from "@/components/base/construction-panel";
 import {
   BUILDING_DEFINITIONS,
   type BuildingId,
 } from "@/lib/game/definitions/buildings";
+import {
+  formatCampfireRemaining,
+  getCampfireCapacitySnapshot,
+} from "@/lib/game/systems/campfire";
 import { usePlayerBuildings } from "@/hooks/use-player-buildings";
+import { usePlayerCampfire } from "@/hooks/use-player-campfire";
 
 const buildingIcons: Record<BuildingId, typeof Tent> = {
   tent: Tent,
@@ -22,8 +29,10 @@ const stateLabels = {
 } as const;
 
 export function BaseOverview({ userId }: { userId: string }) {
-  const { buildings, loading, error } = usePlayerBuildings(userId);
+  const { buildings, loading, error, reloadBuildings } = usePlayerBuildings(userId);
+  const campfireState = usePlayerCampfire(userId);
   const [selectedBuildingId, setSelectedBuildingId] = useState<BuildingId>("tent");
+  const [now, setNow] = useState(() => new Date().toISOString());
 
   const selectedBuilding =
     buildings.find((building) => building.buildingId === selectedBuildingId) ??
@@ -31,6 +40,14 @@ export function BaseOverview({ userId }: { userId: string }) {
   const selectedDefinition = BUILDING_DEFINITIONS.find(
     (definition) => definition.id === selectedBuilding?.buildingId,
   );
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setNow(new Date().toISOString());
+    }, 60_000);
+
+    return () => window.clearInterval(interval);
+  }, []);
 
   return (
     <section className="rounded-lg border border-white/10 bg-[#18232d] p-4">
@@ -58,9 +75,13 @@ export function BaseOverview({ userId }: { userId: string }) {
           const maxHp = building?.maxHp ?? definition.baseMaxHp;
           const hpPercent = maxHp > 0 ? Math.round((currentHp / maxHp) * 100) : 0;
           const state = building?.state ?? definition.initialState;
+          const campfireCapacity =
+            definition.id === "campfire"
+              ? getCampfireCapacitySnapshot(campfireState.campfire, now)
+              : null;
           const statusText = definition.usesHp
             ? `${currentHp}/${maxHp} HP`
-            : "Timer";
+            : formatCampfireRemaining(campfireCapacity?.remainingMs ?? 0);
 
           return (
             <button
@@ -107,12 +128,35 @@ export function BaseOverview({ userId }: { userId: string }) {
           <p className="font-bold text-white">{selectedDefinition.name}</p>
           <p className="mt-1">{selectedDefinition.description}</p>
           <p className="mt-2 text-[#aeb9b6]">
-            State: {stateLabels[selectedBuilding.state]} · Level:{" "}
+            Status: {stateLabels[selectedBuilding.state]} · Nivå{" "}
             {selectedBuilding.level}
             {selectedDefinition.usesHp
               ? ` · HP: ${selectedBuilding.currentHp}/${selectedBuilding.maxHp}`
-              : " · Ingen HP i nuvarande version"}
+              : ""}
           </p>
+        </div>
+      ) : null}
+
+      {selectedBuildingId === "campfire" ? (
+        <div className="mt-3">
+          <CampfirePanel
+            campfire={campfireState.campfire}
+            loading={campfireState.loading}
+            error={campfireState.error}
+            fueling={campfireState.fueling}
+            fuelCampfire={campfireState.fuelCampfire}
+          />
+        </div>
+      ) : null}
+
+      {selectedBuildingId === "wall" && selectedBuilding ? (
+        <div className="mt-3">
+          <ConstructionPanel
+            userId={userId}
+            constructionId="wall_level_1"
+            isBuilt={selectedBuilding.level > 0 && selectedBuilding.state !== "not_built"}
+            onChanged={reloadBuildings}
+          />
         </div>
       ) : null}
 

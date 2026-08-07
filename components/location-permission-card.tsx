@@ -16,8 +16,8 @@ export function LocationPermissionCard({
         <div>
           <h1 className="text-2xl font-black tracking-normal text-white">Runhold</h1>
           <p className="mt-1 text-sm leading-6 text-[#c9d4d0]">
-            Ett tekniskt GPS-test: välj ett mål ungefär 500 meter bort, gå dit,
-            få en ping och gå tillbaka till startpunkten.
+            Välj ett mål ungefär 500 meter bort, gå dit och hämta hem resurser
+            till ditt läger.
           </p>
         </div>
       </div>
@@ -29,7 +29,7 @@ export function LocationPermissionCard({
         </div>
         <p className="mt-2">
           GPS används först när du trycker på knappen. Appen sparar inte löpande
-          positionshistorik, bara startpunkt, destination och testresultat.
+          positionshistorik, bara startpunkt, destination och uppdragsresultat.
         </p>
       </div>
 

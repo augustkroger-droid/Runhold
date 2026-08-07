@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Runhold",
-  description: "Ett mobilt tekniskt GPS-test för ett framtida löparspel.",
+  description: "Runhold: gå på uppdrag, samla resurser och bygg ditt läger.",
   icons: {
     icon: "/icons/icon-192.svg",
     apple: "/icons/icon-192.svg",

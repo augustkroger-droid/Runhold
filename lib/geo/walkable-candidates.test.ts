@@ -49,8 +49,8 @@ describe("walkable candidates", () => {
             type: "way",
             id: 1,
             geometry: [
-              { lat: 57.78, lng: 14.16 },
-              { lat: 57.781, lng: 14.16 },
+              { lat: 57.78, lon: 14.16 },
+              { lat: 57.781, lon: 14.16 },
             ],
           },
         ],
@@ -72,8 +72,8 @@ describe("walkable candidates", () => {
             id: 42,
             tags: { highway: "footway" },
             geometry: [
-              { lat: 57.78, lng: 14.16 },
-              { lat: 57.781, lng: 14.16 },
+              { lat: 57.78, lon: 14.16 },
+              { lat: 57.781, lon: 14.16 },
             ],
           },
         ],
@@ -94,6 +94,27 @@ describe("walkable candidates", () => {
     ]);
   });
 
+  it("normalizes Overpass lon coordinates into internal lng coordinates", () => {
+    const candidates = parseWalkableCandidates(
+      {
+        elements: [
+          {
+            type: "way",
+            id: 7,
+            geometry: [
+              { lat: 57.78, lon: 14.16 },
+              { lat: 57.7805, lon: 14.1605 },
+            ],
+          },
+        ],
+      },
+      { lat: 57.78, lng: 14.16 },
+      200,
+    );
+
+    expect(candidates[0]).toEqual({ lat: 57.78, lng: 14.16 });
+  });
+
   it("prioritizes nearby candidates before distant ones", () => {
     const candidates = parseWalkableCandidates(
       {
@@ -102,16 +123,16 @@ describe("walkable candidates", () => {
             type: "way",
             id: 1,
             geometry: [
-              { lat: 57.82, lng: 14.16 },
-              { lat: 57.821, lng: 14.16 },
+              { lat: 57.82, lon: 14.16 },
+              { lat: 57.821, lon: 14.16 },
             ],
           },
           {
             type: "way",
             id: 2,
             geometry: [
-              { lat: 57.78, lng: 14.16 },
-              { lat: 57.781, lng: 14.16 },
+              { lat: 57.78, lon: 14.16 },
+              { lat: 57.781, lon: 14.16 },
             ],
           },
         ],

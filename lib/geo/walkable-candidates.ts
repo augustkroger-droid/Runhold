@@ -12,11 +12,17 @@ type OverpassElement = {
   type: string;
   id: number;
   tags?: Record<string, string>;
-  geometry?: Coordinate[];
+  geometry?: OverpassGeometryPoint[];
 };
 
 export type OverpassResponse = {
   elements?: OverpassElement[];
+};
+
+type OverpassGeometryPoint = {
+  lat: number;
+  lon?: number;
+  lng?: number;
 };
 
 export type WalkableOverpassMode = "strict" | "public-road";
@@ -91,6 +97,25 @@ function candidateKey(point: Coordinate): string {
   return `${point.lat.toFixed(5)}:${point.lng.toFixed(5)}`;
 }
 
+function normalizeCoordinate(point: OverpassGeometryPoint): Coordinate | null {
+  const lng = point.lng ?? point.lon;
+
+  if (
+    lng === undefined ||
+    !Number.isFinite(point.lat) ||
+    !Number.isFinite(lng) ||
+    Math.abs(point.lat) > 90 ||
+    Math.abs(lng) > 180
+  ) {
+    return null;
+  }
+
+  return {
+    lat: point.lat,
+    lng,
+  };
+}
+
 function isValidCoordinate(point: Coordinate): boolean {
   return (
     Number.isFinite(point.lat) &&
@@ -115,8 +140,10 @@ export function parseWalkableCandidates(
     }
 
     for (let index = 1; index < element.geometry.length; index += 1) {
-      const start = element.geometry[index - 1];
-      const end = element.geometry[index];
+      const start = normalizeCoordinate(element.geometry[index - 1]);
+      const end = normalizeCoordinate(element.geometry[index]);
+      if (!start || !end) continue;
+
       const segmentLengthM = haversineDistanceMeters(start, end);
       const sampleCount = Math.max(1, Math.floor(segmentLengthM / sampleSpacingM));
 
@@ -158,7 +185,10 @@ export function parseWalkablePaths(
         element.geometry.length >= 2,
     )
     .map((element) => {
-      const points = (element.geometry ?? []).filter(isValidCoordinate);
+      const points = (element.geometry ?? []).flatMap((point) => {
+        const coordinate = normalizeCoordinate(point);
+        return coordinate && isValidCoordinate(coordinate) ? [coordinate] : [];
+      });
       const nearestDistanceM = Math.min(
         ...points.map((point) => haversineDistanceMeters(center, point)),
       );

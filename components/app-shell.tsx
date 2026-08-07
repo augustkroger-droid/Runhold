@@ -25,6 +25,7 @@ export function AppShell() {
     loading: profileLoading,
     error: profileError,
     createProfile,
+    reloadProfile,
   } = usePlayerProfile(authState.userId);
 
   async function handleSignOut() {
@@ -120,6 +121,9 @@ export function AppShell() {
         userId={authState.userId}
         username={authState.username ?? "spelare"}
         onSignOut={handleSignOut}
+        onProfileChanged={async () => {
+          await reloadProfile();
+        }}
       />
       <ServiceWorkerRegister />
     </>

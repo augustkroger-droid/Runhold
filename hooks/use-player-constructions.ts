@@ -30,6 +30,10 @@ function constructionErrorMessage(message: string): string {
     return "Detta är redan byggt.";
   }
 
+  if (/TECH_REQUIRED/i.test(message)) {
+    return "Du behöver låsa upp detta i tech tree först.";
+  }
+
   if (/permission denied/i.test(message)) {
     return "Supabase saknar rättigheter för byggnation. Kör senaste SQL-migrationen.";
   }

@@ -12,7 +12,7 @@ const tabs: readonly {
 }[] = [
   { id: "base", label: "Bas", Icon: Home },
   { id: "expedition", label: "Expedition", Icon: Map },
-  { id: "tech", label: "Tech", Icon: Network, disabled: true },
+  { id: "tech", label: "Tech", Icon: Network },
   { id: "inventory", label: "Förråd", Icon: Backpack },
   { id: "profile", label: "Profil", Icon: User },
 ] as const;

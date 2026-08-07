@@ -1,0 +1,166 @@
+"use client";
+
+import { Hammer, ShieldAlert } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import type { BuildingDefinition } from "@/lib/game/definitions/buildings";
+import { RESOURCE_DEFINITIONS } from "@/lib/game/definitions/resources";
+import { getRepairDefinition } from "@/lib/game/definitions/repairs";
+import type { PlayerBuilding } from "@/lib/game/state/player-buildings";
+import type { PlayerRepair } from "@/lib/game/state/player-repairs";
+import { formatRemainingDuration, getTimerSnapshot } from "@/lib/game/systems/timers";
+
+function formatRepairCost(cost: Record<string, number>): string {
+  return Object.entries(cost)
+    .map(([resourceId, amount]) => {
+      const resource = RESOURCE_DEFINITIONS.find(
+        (definition) => definition.id === resourceId,
+      );
+
+      return `${amount} ${resource?.name ?? resourceId}`;
+    })
+    .join(" · ");
+}
+
+function calculateRepairPreview(building: PlayerBuilding): {
+  missingHp: number;
+  cost: Record<string, number>;
+} | null {
+  const definition = getRepairDefinition(building.buildingId);
+  const missingHp = Math.max(0, building.maxHp - building.currentHp);
+
+  if (!definition || missingHp <= 0) return null;
+
+  const units = Math.ceil(missingHp / 10);
+  return {
+    missingHp,
+    cost: Object.fromEntries(
+      Object.entries(definition.costPer10Hp).map(([resourceId, amount]) => [
+        resourceId,
+        (amount ?? 0) * units,
+      ]),
+    ),
+  };
+}
+
+export function RepairPanel({
+  building,
+  definition,
+  activeRepair,
+  repairing,
+  damaging,
+  onRepair,
+  onDamage,
+  onChanged,
+}: {
+  building: PlayerBuilding;
+  definition: BuildingDefinition;
+  activeRepair: PlayerRepair | null;
+  repairing: boolean;
+  damaging: boolean;
+  onRepair: () => Promise<void>;
+  onDamage: () => Promise<void>;
+  onChanged: () => void;
+}) {
+  const [now, setNow] = useState(() => new Date().toISOString());
+  const repairPreview = useMemo(() => calculateRepairPreview(building), [building]);
+  const snapshot = activeRepair
+    ? getTimerSnapshot(
+        {
+          startsAt: activeRepair.startsAt,
+          completesAt: activeRepair.completesAt,
+        },
+        now,
+      )
+    : null;
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setNow(new Date().toISOString());
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (snapshot?.status !== "completed") return;
+
+    const timeout = window.setTimeout(onChanged, 250);
+    return () => window.clearTimeout(timeout);
+  }, [onChanged, snapshot?.status]);
+
+  if (!definition.usesHp) return null;
+
+  return (
+    <section className="rounded-lg border border-white/10 bg-[#18232d] p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 font-black text-white">
+          <ShieldAlert aria-hidden="true" size={19} />
+          Skick
+        </div>
+        <span className="text-sm font-black text-white">
+          {building.currentHp}/{building.maxHp} HP
+        </span>
+      </div>
+
+      <div className="mt-3 h-2 overflow-hidden rounded-full bg-black/30">
+        <div
+          className="h-full rounded-full bg-[#43d9ad]"
+          style={{
+            width: `${Math.max(
+              0,
+              Math.min(100, Math.round((building.currentHp / building.maxHp) * 100)),
+            )}%`,
+          }}
+        />
+      </div>
+
+      {activeRepair && snapshot ? (
+        <div className="mt-3 rounded-md bg-[#101820] p-3">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm font-bold text-[#aeb9b6]">Reparation</span>
+            <span className="text-sm font-black text-white">
+              {snapshot.status === "completed"
+                ? "Klar"
+                : formatRemainingDuration(snapshot.remainingMs)}
+            </span>
+          </div>
+          <div className="mt-3 h-2 overflow-hidden rounded-full bg-black/30">
+            <div
+              className="h-full rounded-full bg-[#f5b84b]"
+              style={{ width: `${Math.round(snapshot.progress * 100)}%` }}
+            />
+          </div>
+        </div>
+      ) : repairPreview ? (
+        <div className="mt-3 grid gap-2">
+          <p className="rounded-md bg-[#101820] p-3 text-sm font-bold text-[#c9d4d0]">
+            Reparation: {repairPreview.missingHp} HP ·{" "}
+            {formatRepairCost(repairPreview.cost)}
+          </p>
+          <button
+            type="button"
+            className="flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-[#315f36] px-3 font-black text-white disabled:cursor-wait disabled:opacity-60"
+            disabled={repairing}
+            onClick={onRepair}
+          >
+            <Hammer aria-hidden="true" size={18} />
+            Reparera
+          </button>
+        </div>
+      ) : (
+        <p className="mt-3 rounded-md bg-[#101820] p-3 text-sm font-bold text-[#c9d4d0]">
+          I gott skick
+        </p>
+      )}
+
+      <button
+        type="button"
+        className="mt-3 flex min-h-10 w-full items-center justify-center gap-2 rounded-md border border-[#f5b84b]/35 bg-[#3d3017] px-3 text-sm font-black text-[#ffe6ad] disabled:cursor-wait disabled:opacity-60"
+        disabled={damaging || activeRepair !== null}
+        onClick={onDamage}
+      >
+        Övningsattack
+      </button>
+    </section>
+  );
+}

@@ -3,4 +3,5 @@ export const CAMPFIRE_CONFIG = {
   burnMinutesPerWood: 10,
   maxBurnHours: 24,
   quickFuelOptions: [1, 5] as const,
+  showSecondsInDetail: true,
 };

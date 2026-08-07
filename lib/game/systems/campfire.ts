@@ -56,7 +56,34 @@ export function getCampfireCapacitySnapshot(
   };
 }
 
-export function formatCampfireRemaining(milliseconds: number): string {
+export function formatCampfireRemaining(
+  milliseconds: number,
+  options?: { includeSeconds?: boolean },
+): string {
+  if (options?.includeSeconds && milliseconds > 0) {
+    const totalSeconds = Math.max(0, Math.ceil(milliseconds / 1000));
+    const days = Math.floor(totalSeconds / 86_400);
+    const hours = Math.floor((totalSeconds % 86_400) / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    if (days > 0) {
+      return `${days}d ${hours}h ${minutes.toString().padStart(2, "0")}m`;
+    }
+
+    if (hours > 0) {
+      return `${hours}h ${minutes.toString().padStart(2, "0")}m ${seconds
+        .toString()
+        .padStart(2, "0")}s`;
+    }
+
+    if (minutes > 0) {
+      return `${minutes}m ${seconds.toString().padStart(2, "0")}s`;
+    }
+
+    return `${seconds}s`;
+  }
+
   const totalMinutes = Math.max(0, Math.ceil(milliseconds / 60_000));
   const days = Math.floor(totalMinutes / 1440);
   const hours = Math.floor((totalMinutes % 1440) / 60);

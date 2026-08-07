@@ -73,7 +73,9 @@ export function CampfirePanel({
         <div className="flex items-center justify-between gap-3">
           <span className="text-sm font-bold text-[#aeb9b6]">Återstående tid</span>
           <span className="text-lg font-black text-white">
-            {formatCampfireRemaining(capacity.remainingMs)}
+            {formatCampfireRemaining(capacity.remainingMs, {
+              includeSeconds: CAMPFIRE_CONFIG.showSecondsInDetail,
+            })}
           </span>
         </div>
         <div className="mt-3 h-2 overflow-hidden rounded-full bg-black/30">

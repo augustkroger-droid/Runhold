@@ -71,6 +71,7 @@ export function MissionMap({
   current,
   canSelectDestination,
   showStartRadius,
+  scanRadiusM,
   onDestinationSelect,
 }: {
   start: Coordinate;
@@ -78,6 +79,7 @@ export function MissionMap({
   current: Coordinate | null;
   canSelectDestination: boolean;
   showStartRadius: boolean;
+  scanRadiusM?: number | null;
   onDestinationSelect: (point: Coordinate) => void;
 }) {
   const activeCenter = current ?? start;
@@ -110,6 +112,13 @@ export function MissionMap({
           center={[start.lat, start.lng]}
           radius={20}
           pathOptions={{ color: "#43d9ad", fillColor: "#43d9ad", fillOpacity: 0.14 }}
+        />
+      ) : null}
+      {scanRadiusM && current ? (
+        <Circle
+          center={[current.lat, current.lng]}
+          radius={scanRadiusM}
+          pathOptions={{ color: "#f5b84b", fillColor: "#f5b84b", fillOpacity: 0.08 }}
         />
       ) : null}
       {destination ? (

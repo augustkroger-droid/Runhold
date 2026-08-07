@@ -1,8 +1,8 @@
 # Runhold
 
-Runhold är en liten mobilanpassad PWA för ett tekniskt GPS-test inför ett framtida löparspel. Appen hämtar startposition först efter knapptryck, låter användaren placera ett mål cirka 500 meter bort, följer positionen lokalt i webbläsaren och sparar endast uppdragets resultat i Supabase.
+Runhold är en mobilanpassad PWA för ett GPS-drivet löparspel. Appen har inloggning, spelprofil, bas, förråd, lägereld, byggnation, reparationer, tech tree och en första expeditionsvy med GPS, scanner och XP.
 
-Målet kan slumpas fram via OpenStreetMap/Overpass så att appen försöker välja en punkt på en gångbar väg runt 500 meter från start. Det är en bästa möjliga MVP-lösning, inte riktig ruttplanering. Om Overpass inte svarar eller saknar bra träffar faller appen tillbaka till en geografiskt korrekt 500-meterspunkt.
+Expeditionen använder mobilens position lokalt under aktiv runda. När expeditionen avslutas sparas en sammanfattning i Supabase och spelaren får XP som kan användas i tech tree.
 
 ## Lokalt
 
@@ -63,7 +63,7 @@ GPS kräver normalt HTTPS på mobil. Lokal testning fungerar bäst med webbläsa
 3. Aktivera email/password-inloggning under `Authentication` -> `Sign In / Providers` -> `Email`.
 4. För nuvarande testläge: stäng av email confirmation så att nya konton kan logga in direkt. Vi kopplar riktig mailverifiering och lösenordsåterställning senare.
 5. Signup använder riktig emailadress, användarnamn och lösenord. Login använder användarnamn och lösenord.
-6. Kör SQL-migrationerna i `supabase/migrations/001_initial_schema.sql`, `supabase/migrations/002_profiles_auth.sql`, `supabase/migrations/003_player_game_profiles.sql`, `supabase/migrations/004_player_profile_permissions.sql`, `supabase/migrations/005_player_resources.sql`, `supabase/migrations/006_fix_resource_adjust_function.sql`, `supabase/migrations/007_player_buildings.sql`, `supabase/migrations/008_player_campfire.sql`, `supabase/migrations/009_update_campfire_balance.sql` och `supabase/migrations/010_wall_construction.sql` via Supabase SQL Editor, eller med Supabase CLI om du använder CLI lokalt. Den andra migrationen skapar `profiles`, unik användarnamnskontroll och uppslag från användarnamn till email vid login. Den tredje skapar spelarens grundläggande game state. Den fjärde säkerställer tabellrättigheter för inloggade användare. Den femte skapar resursdefinitioner och spelarens resursbalanser. Den sjätte fixar resursjusteringsfunktionen. Den sjunde skapar basens byggnadsdefinitioner och spelarens byggnader. Den åttonde skapar lägereldens brinntimer. Den nionde uppdaterar eld-balansen till 10 minuter/trä och max 24 timmar. Den tionde skapar murbyggnation.
+6. Kör SQL-migrationerna i `supabase/migrations/001_initial_schema.sql` till och med `supabase/migrations/013_expeditions.sql` via Supabase SQL Editor, eller med Supabase CLI om du använder CLI lokalt. Migration 011 skapar reparationer, HP-skada och repair timers. Migration 012 skapar tech tree och låser muren bakom `basic_wall`. Migration 013 skapar expeditionssammanfattningar och XP-belöningar.
 7. Om `DATABASE_URL`, Supabase CLI eller annan admin-anslutning finns i miljön kan migrationer köras direkt från terminalen. Med endast publishable/anon key måste SQL köras i Supabase SQL Editor.
 8. Kontrollera att RLS är aktivt:
 

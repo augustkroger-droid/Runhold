@@ -3,6 +3,7 @@ import {
   boundingBoxForRadius,
   buildWalkableOverpassQuery,
   parseWalkableCandidates,
+  parseWalkablePaths,
 } from "@/lib/geo/walkable-candidates";
 
 describe("walkable candidates", () => {
@@ -60,6 +61,37 @@ describe("walkable candidates", () => {
 
     expect(candidates.length).toBeGreaterThan(1);
     expect(candidates[0]).toEqual({ lat: 57.78, lng: 14.16 });
+  });
+
+  it("extracts walkable path lines for the map overlay", () => {
+    const paths = parseWalkablePaths(
+      {
+        elements: [
+          {
+            type: "way",
+            id: 42,
+            tags: { highway: "footway" },
+            geometry: [
+              { lat: 57.78, lng: 14.16 },
+              { lat: 57.781, lng: 14.16 },
+            ],
+          },
+        ],
+      },
+      { lat: 57.78, lng: 14.16 },
+      500,
+    );
+
+    expect(paths).toEqual([
+      {
+        id: "42",
+        highway: "footway",
+        points: [
+          { lat: 57.78, lng: 14.16 },
+          { lat: 57.781, lng: 14.16 },
+        ],
+      },
+    ]);
   });
 
   it("prioritizes nearby candidates before distant ones", () => {

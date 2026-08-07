@@ -1,6 +1,7 @@
 import {
   buildWalkableOverpassQuery,
   parseWalkableCandidates,
+  parseWalkablePaths,
 } from "@/lib/geo/walkable-candidates";
 
 export const runtime = "nodejs";
@@ -76,10 +77,12 @@ export async function GET(request: Request) {
         if (!data) continue;
 
         const candidates = parseWalkableCandidates(data, center, queryRadiusM);
+        const paths = parseWalkablePaths(data, center, queryRadiusM);
 
         if (candidates.length > 0) {
           return Response.json({
             candidates,
+            paths,
             radiusM: queryRadiusM,
             source: `openstreetmap-overpass-${queryMode}`,
           });
@@ -88,5 +91,5 @@ export async function GET(request: Request) {
     }
   }
 
-  return Response.json({ candidates: [], radiusM, source: "overpass-empty" });
+  return Response.json({ candidates: [], paths: [], radiusM, source: "overpass-empty" });
 }

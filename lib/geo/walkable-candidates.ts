@@ -2,6 +2,11 @@ import { haversineDistanceMeters } from "@/lib/geo/haversine";
 import type { Coordinate } from "@/lib/game/gps/position";
 
 export type WalkableCandidate = Coordinate;
+export type WalkablePath = {
+  id: string;
+  highway: string;
+  points: Coordinate[];
+};
 
 type OverpassElement = {
   type: string;
@@ -14,7 +19,7 @@ type OverpassResponse = {
   elements?: OverpassElement[];
 };
 
-type WalkableOverpassMode = "strict" | "public-road";
+export type WalkableOverpassMode = "strict" | "public-road";
 
 const allowedHighways = [
   "footway",
@@ -86,6 +91,15 @@ function candidateKey(point: Coordinate): string {
   return `${point.lat.toFixed(5)}:${point.lng.toFixed(5)}`;
 }
 
+function isValidCoordinate(point: Coordinate): boolean {
+  return (
+    Number.isFinite(point.lat) &&
+    Number.isFinite(point.lng) &&
+    Math.abs(point.lat) <= 90 &&
+    Math.abs(point.lng) <= 180
+  );
+}
+
 export function parseWalkableCandidates(
   data: OverpassResponse,
   center: Coordinate,
@@ -108,6 +122,7 @@ export function parseWalkableCandidates(
 
       for (let sampleIndex = 0; sampleIndex <= sampleCount; sampleIndex += 1) {
         const point = interpolatePoint(start, end, sampleIndex / sampleCount);
+        if (!isValidCoordinate(point)) continue;
         if (haversineDistanceMeters(center, point) > radiusM) continue;
 
         const key = candidateKey(point);
@@ -127,4 +142,43 @@ export function parseWalkableCandidates(
     .sort((left, right) => left.distanceM - right.distanceM)
     .slice(0, maxCandidates)
     .map(({ point }) => point);
+}
+
+export function parseWalkablePaths(
+  data: OverpassResponse,
+  center: Coordinate,
+  radiusM: number,
+  maxPaths = 90,
+): WalkablePath[] {
+  return (data.elements ?? [])
+    .filter(
+      (element) =>
+        element.type === "way" &&
+        Array.isArray(element.geometry) &&
+        element.geometry.length >= 2,
+    )
+    .map((element) => {
+      const points = (element.geometry ?? []).filter(isValidCoordinate);
+      const nearestDistanceM = Math.min(
+        ...points.map((point) => haversineDistanceMeters(center, point)),
+      );
+      const displayPoints = points.filter(
+        (point) => haversineDistanceMeters(center, point) <= radiusM + 160,
+      );
+
+      return {
+        path: {
+          id: String(element.id),
+          highway: element.tags?.highway ?? "path",
+          points: displayPoints.length >= 2 ? displayPoints : points.slice(0, 60),
+        },
+        nearestDistanceM,
+      };
+    })
+    .filter(({ path, nearestDistanceM }) => {
+      return path.points.length >= 2 && nearestDistanceM <= radiusM + 160;
+    })
+    .sort((left, right) => left.nearestDistanceM - right.nearestDistanceM)
+    .slice(0, maxPaths)
+    .map(({ path }) => path);
 }

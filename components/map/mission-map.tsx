@@ -16,6 +16,7 @@ import {
 import type { Coordinate } from "@/lib/game/gps/position";
 import type { PlayerMapObject } from "@/lib/game/state/map-objects";
 import { RESOURCE_DEFINITIONS } from "@/lib/game/definitions/resources";
+import type { WalkablePath } from "@/lib/geo/walkable-candidates";
 
 const startIcon = L.divIcon({
   className: "",
@@ -147,6 +148,7 @@ export function MissionMap({
   showStartRadius,
   scanRadiusM,
   mapObjects = [],
+  walkablePaths = [],
   routePoints = [],
   centerLabel,
   centerControlClassName = "bottom-4 right-4",
@@ -160,6 +162,7 @@ export function MissionMap({
   showStartRadius: boolean;
   scanRadiusM?: number | null;
   mapObjects?: PlayerMapObject[];
+  walkablePaths?: WalkablePath[];
   routePoints?: Coordinate[];
   centerLabel: string;
   centerControlClassName?: string;
@@ -171,6 +174,14 @@ export function MissionMap({
   const routeLine = useMemo(
     () => routePoints.map((point) => [point.lat, point.lng] as [number, number]),
     [routePoints],
+  );
+  const walkableLines = useMemo(
+    () =>
+      walkablePaths.map((path) => ({
+        id: path.id,
+        positions: path.points.map((point) => [point.lat, point.lng] as [number, number]),
+      })),
+    [walkablePaths],
   );
 
   return (
@@ -220,6 +231,28 @@ export function MissionMap({
           pathOptions={{ color: "#f5b84b", fillColor: "#f5b84b", fillOpacity: 0.08 }}
         />
       ) : null}
+      {walkableLines.map((path) => (
+        <Polyline
+          key={path.id}
+          positions={path.positions}
+          pathOptions={{
+            color: "#f5b84b",
+            opacity: 0.72,
+            weight: 5,
+          }}
+        />
+      ))}
+      {walkableLines.map((path) => (
+        <Polyline
+          key={`${path.id}-core`}
+          positions={path.positions}
+          pathOptions={{
+            color: "#fff1b5",
+            opacity: 0.9,
+            weight: 2,
+          }}
+        />
+      ))}
       {mapObjects.map((object) => (
         <Marker
           key={object.id}

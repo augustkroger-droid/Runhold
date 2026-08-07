@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import { MAP_OBJECT_CONFIG } from "@/lib/game/definitions/map-objects";
 import type { Coordinate } from "@/lib/game/gps/position";
-import type { WalkableCandidate } from "@/lib/geo/walkable-candidates";
+import type { WalkableCandidate, WalkablePath } from "@/lib/geo/walkable-candidates";
 import {
   type PlayerMapObject,
   type PlayerMapObjectRow,
@@ -13,6 +13,7 @@ import { getSupabaseClient } from "@/lib/supabase/client";
 
 type WalkableCandidateResponse = {
   candidates: WalkableCandidate[];
+  paths: WalkablePath[];
   source: string;
   radiusM: number;
 };
@@ -60,11 +61,12 @@ async function fetchWalkableCandidates({
     });
 
     if (!response.ok) {
-      return { candidates: [], source: "walkable-api-error", radiusM };
+      return { candidates: [], paths: [], source: "walkable-api-error", radiusM };
     }
 
     const data = (await response.json()) as {
       candidates?: WalkableCandidate[];
+      paths?: WalkablePath[];
       source?: string;
       radiusM?: number;
     };
@@ -77,11 +79,12 @@ async function fetchWalkableCandidates({
           Math.abs(candidate.lat) <= 90 &&
           Math.abs(candidate.lng) <= 180,
       ),
+      paths: (data.paths ?? []).filter((path) => path.points.length >= 2),
       source: data.source ?? "unknown",
       radiusM: data.radiusM ?? radiusM,
     };
   } catch {
-    return { candidates: [], source: "walkable-api-error", radiusM };
+    return { candidates: [], paths: [], source: "walkable-api-error", radiusM };
   } finally {
     clearTimeout(timeoutId);
   }
@@ -105,8 +108,26 @@ function mergeWalkableCandidates(
   return merged;
 }
 
+function mergeWalkablePaths(
+  primary: WalkablePath[],
+  secondary: WalkablePath[],
+): WalkablePath[] {
+  const merged: WalkablePath[] = [];
+  const seen = new Set<string>();
+
+  for (const path of [...primary, ...secondary]) {
+    if (seen.has(path.id)) continue;
+
+    seen.add(path.id);
+    merged.push(path);
+  }
+
+  return merged;
+}
+
 export function useMapObjects() {
   const [objects, setObjects] = useState<PlayerMapObject[]>([]);
+  const [walkablePaths, setWalkablePaths] = useState<WalkablePath[]>([]);
   const [scanning, setScanning] = useState(false);
   const [collecting, setCollecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -132,6 +153,7 @@ export function useMapObjects() {
         visibleCandidates.candidates.length >= 24
           ? {
               candidates: [],
+              paths: [],
               source:
                 visibleCandidates.candidates.length === 0
                   ? "visible-candidates-empty"
@@ -146,6 +168,11 @@ export function useMapObjects() {
         visibleCandidates.candidates,
         widerCandidates.candidates,
       );
+      const nextWalkablePaths = mergeWalkablePaths(
+        visibleCandidates.paths,
+        widerCandidates.paths,
+      );
+      setWalkablePaths(nextWalkablePaths);
 
       if (walkableCandidates.length === 0) {
         const message =
@@ -240,6 +267,7 @@ export function useMapObjects() {
 
   return {
     objects,
+    walkablePaths,
     scanning,
     collecting,
     error,

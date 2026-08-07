@@ -6,6 +6,7 @@ import { type GeoReading, useGeolocationWatch } from "@/hooks/use-geolocation-wa
 import { useMapObjects } from "@/hooks/use-map-objects";
 import { usePlayerExpeditions } from "@/hooks/use-player-expeditions";
 import { usePlayerTech } from "@/hooks/use-player-tech";
+import { useScreenWakeLock } from "@/hooks/use-screen-wake-lock";
 import { MapLoader } from "@/components/map/map-loader";
 import { useI18n } from "@/components/i18n-provider";
 import type { Coordinate } from "@/lib/game/gps/position";
@@ -71,6 +72,8 @@ export function ExpeditionView({
   const [status, setStatus] = useState<"idle" | "locating" | "ready" | "active" | "done">(
     "idle",
   );
+  const isActive = status === "active";
+  const { status: wakeLockStatus } = useScreenWakeLock(isActive);
   const [start, setStart] = useState<Coordinate | null>(null);
   const [current, setCurrent] = useState<Coordinate | null>(null);
   const [accuracyM, setAccuracyM] = useState<number | null>(null);
@@ -230,6 +233,13 @@ export function ExpeditionView({
     }
   }, [current, scanObjects, scannerRadiusM, t]);
 
+  const startActiveWatch = useCallback(() => {
+    startWatch({
+      onReading: handleReading,
+      onError: setMessage,
+    });
+  }, [handleReading, startWatch]);
+
   const startExpedition = useCallback(async () => {
     if (!current) {
       locate();
@@ -256,14 +266,29 @@ export function ExpeditionView({
       }, 1000);
       setMessage(t("expedition.started"));
 
-      startWatch({
-        onReading: handleReading,
-        onError: setMessage,
-      });
+      startActiveWatch();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : t("expedition.saveError"));
     }
-  }, [createExpedition, current, handleReading, locate, startWatch, t]);
+  }, [createExpedition, current, locate, startActiveWatch, t]);
+
+  useEffect(() => {
+    if (!isActive) return;
+
+    function resumeActiveWatch() {
+      if (document.visibilityState !== "visible") return;
+      startActiveWatch();
+      setElapsedNow(Date.now());
+    }
+
+    document.addEventListener("visibilitychange", resumeActiveWatch);
+    window.addEventListener("focus", resumeActiveWatch);
+
+    return () => {
+      document.removeEventListener("visibilitychange", resumeActiveWatch);
+      window.removeEventListener("focus", resumeActiveWatch);
+    };
+  }, [isActive, startActiveWatch]);
 
   const stopExpedition = useCallback(async () => {
     stopWatch();
@@ -376,6 +401,7 @@ export function ExpeditionView({
             {t("expedition.title")}
           </div>
           <span className="text-sm font-bold text-[#aeb9b6]">
+            {wakeLockStatus === "active" ? `${t("expedition.awake")} · ` : ""}
             GPS {accuracyM ? `${Math.round(accuracyM)} m` : "--"}
           </span>
         </div>

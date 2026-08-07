@@ -1,6 +1,6 @@
 import { destinationPoint } from "@/lib/geo/destination-point";
 import { haversineDistanceMeters } from "@/lib/geo/haversine";
-import type { Coordinate } from "@/lib/types/mission";
+import type { Coordinate } from "@/lib/game/gps/position";
 
 type OverpassGeometryPoint = {
   lat: number;

@@ -1,6 +1,7 @@
 "use client";
 
-import type { Coordinate, MissionRow, PersistedMissionStatus } from "@/lib/types/mission";
+import type { Coordinate } from "@/lib/game/gps/position";
+import type { MissionRow, PersistedMissionStatus } from "@/lib/types/mission";
 import { getSupabaseClient } from "@/lib/supabase/client";
 
 type MissionInsert = {

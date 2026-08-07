@@ -14,7 +14,8 @@ import {
   haversineDistanceMeters,
   updateReachStreak,
 } from "@/lib/geo/haversine";
-import type { Coordinate, MissionStatus } from "@/lib/types/mission";
+import type { Coordinate } from "@/lib/game/gps/position";
+import type { MissionStatus } from "@/lib/types/mission";
 
 const REACH_RADIUS_M = 20;
 const MAX_PING_ACCURACY_M = 40;

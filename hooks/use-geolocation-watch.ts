@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
-import type { Coordinate } from "@/lib/types/mission";
+import type { Coordinate } from "@/lib/game/gps/position";
 
 export type GeoReading = {
   position: Coordinate;

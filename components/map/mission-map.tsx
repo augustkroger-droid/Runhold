@@ -12,7 +12,7 @@ import {
   useMap,
   useMapEvents,
 } from "react-leaflet";
-import type { Coordinate } from "@/lib/types/mission";
+import type { Coordinate } from "@/lib/game/gps/position";
 
 const startIcon = L.divIcon({
   className: "",

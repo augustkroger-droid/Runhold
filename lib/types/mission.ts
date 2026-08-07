@@ -1,7 +1,4 @@
-export type Coordinate = {
-  lat: number;
-  lng: number;
-};
+export type { Coordinate } from "@/lib/game/gps/position";
 
 export type MissionStatus =
   | "idle"

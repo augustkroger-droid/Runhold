@@ -1,4 +1,4 @@
-import type { Coordinate } from "@/lib/types/mission";
+import type { Coordinate } from "@/lib/game/gps/position";
 
 const EARTH_RADIUS_M = 6_371_000;
 

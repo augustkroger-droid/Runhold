@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bug, Info, LogOut, Satellite, Trophy } from "lucide-react";
 import { LocationPermissionCard } from "@/components/location-permission-card";
+import { ResourceInventory } from "@/components/inventory/resource-inventory";
 import { MapLoader } from "@/components/map/map-loader";
 import { MissionControls } from "@/components/mission-controls";
 import { MissionStatusPanel } from "@/components/mission-status";
@@ -528,6 +529,8 @@ export function MissionApp({
           </button>
         </div>
       </header>
+
+      <ResourceInventory userId={userId} />
 
       {!showMap ? (
         <LocationPermissionCard loading={status === "locating"} onLocate={locateStart} />

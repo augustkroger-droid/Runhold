@@ -74,20 +74,26 @@ export function useMapObjects() {
     async ({
       objectId,
       position,
+      expeditionId,
     }: {
       objectId: string;
       position: Coordinate;
-    }) => {
+      expeditionId: string;
+    }): Promise<{ resourceId: string; quantity: number }> => {
       setCollecting(true);
       setError(null);
 
       const supabase = getSupabaseClient();
-      const { error: collectError } = await supabase.rpc("collect_player_map_object", {
-        input_object_id: objectId,
-        input_lat: position.lat,
-        input_lng: position.lng,
-        input_collect_radius_m: MAP_OBJECT_CONFIG.collectRadiusM,
-      });
+      const { data, error: collectError } = await supabase.rpc(
+        "collect_player_map_object",
+        {
+          input_expedition_id: expeditionId,
+          input_object_id: objectId,
+          input_lat: position.lat,
+          input_lng: position.lng,
+          input_collect_radius_m: MAP_OBJECT_CONFIG.collectRadiusM,
+        },
+      );
 
       if (collectError) {
         const message = mapObjectErrorMessage(collectError.message);
@@ -96,8 +102,15 @@ export function useMapObjects() {
         throw new Error(message);
       }
 
+      const row = (Array.isArray(data) ? data[0] : data) as
+        | { resource_id?: string; quantity?: number }
+        | null;
       setObjects((current) => current.filter((object) => object.id !== objectId));
       setCollecting(false);
+      return {
+        resourceId: row?.resource_id ?? "",
+        quantity: Number(row?.quantity) || 0,
+      };
     },
     [],
   );

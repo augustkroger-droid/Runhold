@@ -53,7 +53,13 @@ export function ExpeditionView({
 }) {
   const { startWatch, stopWatch } = useGeolocationWatch();
   const { language, t } = useI18n();
-  const { completeExpedition, saving, error: saveError } = usePlayerExpeditions(userId);
+  const {
+    startExpedition: createExpedition,
+    completeExpedition,
+    starting,
+    saving,
+    error: saveError,
+  } = usePlayerExpeditions(userId);
   const {
     objects: mapObjects,
     scanning,
@@ -77,7 +83,9 @@ export function ExpeditionView({
     distanceM: number;
     durationSeconds: number;
     xpEarned: number;
+    resourceHaul: Record<string, number>;
   } | null>(null);
+  const [currentHaul, setCurrentHaul] = useState<Record<string, number>>({});
 
   const lastReadingRef = useRef<Coordinate | null>(null);
   const distanceRef = useRef(0);
@@ -85,6 +93,7 @@ export function ExpeditionView({
   const elapsedIntervalRef = useRef<number | null>(null);
   const mapObjectsRef = useRef(mapObjects);
   const collectingObjectIdsRef = useRef<Set<string>>(new Set());
+  const expeditionIdRef = useRef<string | null>(null);
 
   const scannerRadiusM = unlockedTechIds.has("improved_scanner")
     ? 2500
@@ -119,9 +128,24 @@ export function ExpeditionView({
 
           if (objectDistanceM <= MAP_OBJECT_CONFIG.collectRadiusM) {
             collectingObjectIdsRef.current.add(object.id);
-            void collectObject({ objectId: object.id, position: reading.position })
-              .then(() => {
-                setMessage(`+${object.quantity} ${resourceName(language, object.resourceId)}`);
+            const expeditionId = expeditionIdRef.current;
+            if (!expeditionId) continue;
+
+            void collectObject({
+              objectId: object.id,
+              position: reading.position,
+              expeditionId,
+            })
+              .then((collected) => {
+                const pickedResourceId = collected.resourceId || object.resourceId;
+                const pickedQuantity = collected.quantity || object.quantity;
+                setCurrentHaul((current) => ({
+                  ...current,
+                  [pickedResourceId]: (current[pickedResourceId] ?? 0) + pickedQuantity,
+                }));
+                setMessage(
+                  `+${pickedQuantity} ${resourceName(language, pickedResourceId)}`,
+                );
               })
               .catch((error) => {
                 setMessage(
@@ -206,33 +230,40 @@ export function ExpeditionView({
     }
   }, [current, scanObjects, scannerRadiusM, t]);
 
-  const startExpedition = useCallback(() => {
+  const startExpedition = useCallback(async () => {
     if (!current) {
       locate();
       return;
     }
 
-    setStatus("active");
-    setStart(current);
-    setDistanceM(0);
-    setLastResult(null);
-    distanceRef.current = 0;
-    lastReadingRef.current = current;
-    const now = Date.now();
-    setStartedAt(now);
-    setElapsedNow(now);
-    startedAtRef.current = now;
-    clearElapsedTimer();
-    elapsedIntervalRef.current = window.setInterval(() => {
-      setElapsedNow(Date.now());
-    }, 1000);
-    setMessage(t("expedition.started"));
+    try {
+      const expedition = await createExpedition();
+      expeditionIdRef.current = expedition.id;
+      setStatus("active");
+      setStart(current);
+      setDistanceM(0);
+      setCurrentHaul({});
+      setLastResult(null);
+      distanceRef.current = 0;
+      lastReadingRef.current = current;
+      const now = Date.now();
+      setStartedAt(now);
+      setElapsedNow(now);
+      startedAtRef.current = now;
+      clearElapsedTimer();
+      elapsedIntervalRef.current = window.setInterval(() => {
+        setElapsedNow(Date.now());
+      }, 1000);
+      setMessage(t("expedition.started"));
 
-    startWatch({
-      onReading: handleReading,
-      onError: setMessage,
-    });
-  }, [current, handleReading, locate, startWatch, t]);
+      startWatch({
+        onReading: handleReading,
+        onError: setMessage,
+      });
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : t("expedition.saveError"));
+    }
+  }, [createExpedition, current, handleReading, locate, startWatch, t]);
 
   const stopExpedition = useCallback(async () => {
     stopWatch();
@@ -241,13 +272,21 @@ export function ExpeditionView({
     const started = startedAtRef.current ?? endedAt;
     const durationSeconds = Math.max(0, Math.round((endedAt - started) / 1000));
     const finalDistanceM = distanceRef.current;
+    const expeditionId = expeditionIdRef.current;
 
     startedAtRef.current = null;
+    expeditionIdRef.current = null;
     setStartedAt(null);
     setStatus("done");
 
+    if (!expeditionId) {
+      setMessage(t("expedition.saveError"));
+      return;
+    }
+
     try {
       const result = await completeExpedition({
+        expeditionId,
         distanceM: finalDistanceM,
         durationSeconds,
       });
@@ -255,7 +294,9 @@ export function ExpeditionView({
         distanceM: result.expedition.distanceM,
         durationSeconds: result.expedition.durationSeconds,
         xpEarned: result.expedition.xpEarned,
+        resourceHaul: result.expedition.resourceHaul,
       });
+      setCurrentHaul({});
       setMessage(t("expedition.done", { xp: result.expedition.xpEarned }));
       await onProfileChanged();
     } catch (error) {
@@ -276,9 +317,11 @@ export function ExpeditionView({
     setMessage(null);
     setScanActive(false);
     setLastResult(null);
+    setCurrentHaul({});
     lastReadingRef.current = null;
     distanceRef.current = 0;
     startedAtRef.current = null;
+    expeditionIdRef.current = null;
   }, [stopWatch]);
 
   return (
@@ -365,6 +408,7 @@ export function ExpeditionView({
                 type="button"
                 className="flex min-h-14 w-full items-center justify-center gap-2 rounded-md bg-[#43d9ad] px-4 font-black text-[#07110d]"
                 onClick={startExpedition}
+                disabled={starting}
               >
                 <Play aria-hidden="true" size={21} />
                 {t("expedition.start")}
@@ -417,6 +461,41 @@ export function ExpeditionView({
               <dd className="mt-1 font-black text-white">+{lastResult.xpEarned}</dd>
             </div>
           </dl>
+          <div className="mt-3 rounded-md bg-[#0f211c] p-3">
+            <h3 className="font-black text-white">{t("expedition.haul")}</h3>
+            {Object.keys(lastResult.resourceHaul).length > 0 ? (
+              <div className="mt-2 grid gap-2">
+                {Object.entries(lastResult.resourceHaul).map(([resourceId, quantity]) => (
+                  <div
+                    key={resourceId}
+                    className="flex items-center justify-between text-sm font-bold text-[#c9d4d0]"
+                  >
+                    <span>{resourceName(language, resourceId)}</span>
+                    <span className="text-white">+{quantity}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-2 text-sm text-[#a9cfc3]">{t("expedition.noHaul")}</p>
+            )}
+          </div>
+        </section>
+      ) : null}
+
+      {status === "active" && Object.keys(currentHaul).length > 0 ? (
+        <section className="rounded-lg border border-white/10 bg-[#18232d] p-4">
+          <h2 className="font-black text-white">{t("expedition.haul")}</h2>
+          <div className="mt-2 grid gap-2">
+            {Object.entries(currentHaul).map(([resourceId, quantity]) => (
+              <div
+                key={resourceId}
+                className="flex items-center justify-between text-sm font-bold text-[#c9d4d0]"
+              >
+                <span>{resourceName(language, resourceId)}</span>
+                <span className="text-white">+{quantity}</span>
+              </div>
+            ))}
+          </div>
         </section>
       ) : null}
 

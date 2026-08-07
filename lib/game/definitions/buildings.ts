@@ -9,6 +9,7 @@ export type BuildingDefinition = {
   name: string;
   description: string;
   baseMaxHp: number;
+  usesHp: boolean;
   initialLevel: number;
   initialState: BuildingState;
   sortOrder: number;
@@ -20,6 +21,7 @@ export const BUILDING_DEFINITIONS: readonly BuildingDefinition[] = [
     name: "Tält",
     description: "Första lägret och basens enkla centrum.",
     baseMaxHp: 80,
+    usesHp: true,
     initialLevel: 1,
     initialState: "active",
     sortOrder: 10,
@@ -27,8 +29,9 @@ export const BUILDING_DEFINITIONS: readonly BuildingDefinition[] = [
   {
     id: "campfire",
     name: "Lägereld",
-    description: "Håller mörkret borta. Ved och brinntid kommer i nästa steg.",
-    baseMaxHp: 60,
+    description: "Håller mörkret borta. Kan fyllas med trä men har ingen HP just nu.",
+    baseMaxHp: 0,
+    usesHp: false,
     initialLevel: 1,
     initialState: "active",
     sortOrder: 20,
@@ -38,6 +41,7 @@ export const BUILDING_DEFINITIONS: readonly BuildingDefinition[] = [
     name: "Mur",
     description: "En framtida första försvarslinje mot raids.",
     baseMaxHp: 100,
+    usesHp: true,
     initialLevel: 0,
     initialState: "not_built",
     sortOrder: 30,

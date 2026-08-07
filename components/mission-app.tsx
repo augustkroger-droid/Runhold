@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bug, Info, LogOut, Satellite, Trophy } from "lucide-react";
 import { AppBottomNav, type AppTabId } from "@/components/app-bottom-nav";
 import { BaseOverview } from "@/components/base/base-overview";
+import { CampfirePanel } from "@/components/base/campfire-panel";
 import { LocationPermissionCard } from "@/components/location-permission-card";
 import { ResourceInventory } from "@/components/inventory/resource-inventory";
 import { MapLoader } from "@/components/map/map-loader";
@@ -700,7 +701,12 @@ export function MissionApp({
         </div>
       </header>
 
-      {activeTab === "base" ? <BaseOverview userId={userId} /> : null}
+      {activeTab === "base" ? (
+        <>
+          <BaseOverview userId={userId} />
+          <CampfirePanel userId={userId} />
+        </>
+      ) : null}
       {activeTab === "expedition" ? expeditionView : null}
       {activeTab === "inventory" ? <ResourceInventory userId={userId} /> : null}
       {activeTab === "profile" ? (

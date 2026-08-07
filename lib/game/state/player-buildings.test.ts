@@ -14,8 +14,8 @@ describe("player buildings", () => {
       {
         buildingId: "campfire",
         level: 1,
-        currentHp: 60,
-        maxHp: 60,
+        currentHp: 0,
+        maxHp: 0,
         state: "active",
       },
       {

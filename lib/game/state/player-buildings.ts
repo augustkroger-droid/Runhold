@@ -40,7 +40,10 @@ export function mapPlayerBuildingRows(
       return {
         buildingId: definition.id,
         level: definition.initialLevel,
-        currentHp: definition.initialState === "not_built" ? 0 : definition.baseMaxHp,
+        currentHp:
+          definition.usesHp && definition.initialState !== "not_built"
+            ? definition.baseMaxHp
+            : 0,
         maxHp: definition.baseMaxHp,
         state: definition.initialState,
       };

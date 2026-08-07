@@ -58,6 +58,9 @@ export function BaseOverview({ userId }: { userId: string }) {
           const maxHp = building?.maxHp ?? definition.baseMaxHp;
           const hpPercent = maxHp > 0 ? Math.round((currentHp / maxHp) * 100) : 0;
           const state = building?.state ?? definition.initialState;
+          const statusText = definition.usesHp
+            ? `${currentHp}/${maxHp} HP`
+            : "Timer";
 
           return (
             <button
@@ -83,15 +86,17 @@ export function BaseOverview({ userId }: { userId: string }) {
                   </div>
                 </div>
                 <span className="rounded-md bg-black/20 px-2 py-1 text-xs font-bold text-[#c9d4d0]">
-                  {currentHp}/{maxHp} HP
+                  {statusText}
                 </span>
               </div>
-              <div className="mt-3 h-2 overflow-hidden rounded-full bg-black/30">
-                <div
-                  className="h-full rounded-full bg-[#43d9ad]"
-                  style={{ width: `${Math.max(0, Math.min(100, hpPercent))}%` }}
-                />
-              </div>
+              {definition.usesHp ? (
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-black/30">
+                  <div
+                    className="h-full rounded-full bg-[#43d9ad]"
+                    style={{ width: `${Math.max(0, Math.min(100, hpPercent))}%` }}
+                  />
+                </div>
+              ) : null}
             </button>
           );
         })}
@@ -103,8 +108,10 @@ export function BaseOverview({ userId }: { userId: string }) {
           <p className="mt-1">{selectedDefinition.description}</p>
           <p className="mt-2 text-[#aeb9b6]">
             State: {stateLabels[selectedBuilding.state]} · Level:{" "}
-            {selectedBuilding.level} · HP: {selectedBuilding.currentHp}/
-            {selectedBuilding.maxHp}
+            {selectedBuilding.level}
+            {selectedDefinition.usesHp
+              ? ` · HP: ${selectedBuilding.currentHp}/${selectedBuilding.maxHp}`
+              : " · Ingen HP i nuvarande version"}
           </p>
         </div>
       ) : null}

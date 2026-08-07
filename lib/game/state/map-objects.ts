@@ -2,11 +2,13 @@ import {
   type ResourceId,
   isResourceId,
 } from "@/lib/game/definitions/resources";
+import type { MapObjectKind } from "@/lib/game/definitions/map-objects";
 import type { Coordinate } from "@/lib/game/gps/position";
 
 export type PlayerMapObject = {
   id: string;
-  resourceId: ResourceId;
+  objectKind: MapObjectKind;
+  resourceId: ResourceId | null;
   quantity: number;
   position: Coordinate;
   distanceM: number;
@@ -14,7 +16,8 @@ export type PlayerMapObject = {
 
 export type PlayerMapObjectRow = {
   id: string;
-  resource_id: string;
+  object_kind?: string;
+  resource_id: string | null;
   quantity: number;
   lat: number;
   lng: number;
@@ -25,12 +28,17 @@ export function mapPlayerMapObjectRows(
   rows: readonly PlayerMapObjectRow[],
 ): PlayerMapObject[] {
   return rows
-    .filter((row): row is PlayerMapObjectRow & { resource_id: ResourceId } =>
-      isResourceId(row.resource_id),
-    )
+    .filter((row) => {
+      if (row.object_kind === "chest") return true;
+      return typeof row.resource_id === "string" && isResourceId(row.resource_id);
+    })
     .map((row) => ({
       id: row.id,
-      resourceId: row.resource_id,
+      objectKind: row.object_kind === "chest" ? "chest" : "resource",
+      resourceId:
+        typeof row.resource_id === "string" && isResourceId(row.resource_id)
+          ? row.resource_id
+          : null,
       quantity: row.quantity,
       position: {
         lat: row.lat,

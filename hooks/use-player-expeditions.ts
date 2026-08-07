@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import {
+  type ExpeditionRoutePoint,
   type PlayerExpedition,
   type PlayerExpeditionRow,
   mapPlayerExpeditionRow,
@@ -77,10 +78,12 @@ export function usePlayerExpeditions(userId: string | null) {
       expeditionId,
       distanceM,
       durationSeconds,
+      routePoints,
     }: {
       expeditionId: string;
       distanceM: number;
       durationSeconds: number;
+      routePoints: ExpeditionRoutePoint[];
     }): Promise<{ expedition: PlayerExpedition; totalXp: number }> => {
       if (!userId) {
         throw new Error("Du behöver vara inloggad.");
@@ -96,6 +99,7 @@ export function usePlayerExpeditions(userId: string | null) {
           input_expedition_id: expeditionId,
           input_distance_m: Math.max(0, Math.round(distanceM)),
           input_duration_seconds: Math.max(0, Math.round(durationSeconds)),
+          input_route_points: routePoints,
         },
       );
 

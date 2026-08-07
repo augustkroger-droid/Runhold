@@ -1,7 +1,8 @@
 "use client";
 
 import L from "leaflet";
-import { useEffect } from "react";
+import { Crosshair } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Circle,
   MapContainer,
@@ -41,10 +42,11 @@ function mapObjectIcon(object: PlayerMapObject) {
   const resource = RESOURCE_DEFINITIONS.find(
     (definition) => definition.id === object.resourceId,
   );
+  const markerType = object.objectKind === "chest" ? "chest" : object.resourceId;
 
   return L.divIcon({
     className: "",
-    html: `<span class="runhold-map-object">${resource?.icon ?? "?"}</span>`,
+    html: `<span class="runhold-map-object runhold-map-object-${markerType}">${object.objectKind === "chest" ? "?" : (resource?.icon ?? "?")}</span>`,
     iconSize: [30, 30],
     iconAnchor: [15, 15],
   });
@@ -70,14 +72,59 @@ function MapClickHandler({
   return null;
 }
 
-function Recenter({ center }: { center: Coordinate }) {
+function FollowCurrent({
+  center,
+  following,
+}: {
+  center: Coordinate;
+  following: boolean;
+}) {
   const map = useMap();
 
   useEffect(() => {
+    if (!following) return;
     map.setView([center.lat, center.lng], map.getZoom(), { animate: true });
-  }, [center.lat, center.lng, map]);
+  }, [center.lat, center.lng, following, map]);
 
   return null;
+}
+
+function MapFollowEvents({ onManualMove }: { onManualMove: () => void }) {
+  useMapEvents({
+    dragstart: onManualMove,
+    zoomstart: onManualMove,
+  });
+
+  return null;
+}
+
+function CenterControl({
+  center,
+  label,
+  onCentered,
+}: {
+  center: Coordinate;
+  label: string;
+  onCentered: () => void;
+}) {
+  const map = useMap();
+
+  return (
+    <button
+      type="button"
+      className="absolute bottom-4 right-4 z-[1000] grid size-12 place-items-center rounded-full border border-white/20 bg-[#101820]/92 text-white shadow-2xl backdrop-blur"
+      aria-label={label}
+      title={label}
+      onClick={() => {
+        onCentered();
+        map.setView([center.lat, center.lng], Math.max(map.getZoom(), 16), {
+          animate: true,
+        });
+      }}
+    >
+      <Crosshair aria-hidden="true" size={22} />
+    </button>
+  );
 }
 
 export function MissionMap({
@@ -88,6 +135,8 @@ export function MissionMap({
   showStartRadius,
   scanRadiusM,
   mapObjects = [],
+  routePoints = [],
+  centerLabel,
   onDestinationSelect,
 }: {
   start: Coordinate;
@@ -97,9 +146,16 @@ export function MissionMap({
   showStartRadius: boolean;
   scanRadiusM?: number | null;
   mapObjects?: PlayerMapObject[];
+  routePoints?: Coordinate[];
+  centerLabel: string;
   onDestinationSelect: (point: Coordinate) => void;
 }) {
   const activeCenter = current ?? start;
+  const [following, setFollowing] = useState(true);
+  const routeLine = useMemo(
+    () => routePoints.map((point) => [point.lat, point.lng] as [number, number]),
+    [routePoints],
+  );
 
   return (
     <MapContainer
@@ -110,14 +166,20 @@ export function MissionMap({
       scrollWheelZoom
       touchZoom
       zoomControl={false}
-      className="z-0 h-full min-h-[420px] rounded-lg"
+      className="z-0 h-full min-h-[420px]"
     >
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>-bidragsgivare &copy; <a href="https://carto.com/attributions">CARTO</a>'
         url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
       />
       <ZoomControl position="topright" />
-      <Recenter center={activeCenter} />
+      <FollowCurrent center={activeCenter} following={following} />
+      <MapFollowEvents onManualMove={() => setFollowing(false)} />
+      <CenterControl
+        center={activeCenter}
+        label={centerLabel}
+        onCentered={() => setFollowing(true)}
+      />
       <MapClickHandler
         enabled={canSelectDestination}
         onDestinationSelect={onDestinationSelect}
@@ -145,6 +207,18 @@ export function MissionMap({
           icon={mapObjectIcon(object)}
         />
       ))}
+      {routeLine.length > 1 ? (
+        <>
+          <Polyline
+            positions={routeLine}
+            pathOptions={{ color: "#0b1320", opacity: 0.5, weight: 8 }}
+          />
+          <Polyline
+            positions={routeLine}
+            pathOptions={{ color: "#6ea8fe", opacity: 0.92, weight: 4 }}
+          />
+        </>
+      ) : null}
       {destination ? (
         <>
           <Marker position={[destination.lat, destination.lng]} icon={destinationIcon} />

@@ -82,6 +82,11 @@ export const translations = {
     "expedition.haul": "Fynd",
     "expedition.noHaul": "Inga resurser samlades.",
     "expedition.awake": "Vaken",
+    "expedition.pace": "Tempo",
+    "expedition.items": "Utrustning",
+    "expedition.chest": "OkÃ¤nt fynd",
+    "expedition.centerMap": "Centrera",
+    "item.axe": "Yxa",
     "resource.wood": "Trä",
     "resource.stone": "Sten",
     "resource.food": "Mat",
@@ -175,6 +180,11 @@ export const translations = {
     "expedition.haul": "Haul",
     "expedition.noHaul": "No resources collected.",
     "expedition.awake": "Awake",
+    "expedition.pace": "Pace",
+    "expedition.items": "Gear",
+    "expedition.chest": "Unknown find",
+    "expedition.centerMap": "Center",
+    "item.axe": "Axe",
     "resource.wood": "Wood",
     "resource.stone": "Stone",
     "resource.food": "Food",
@@ -222,6 +232,11 @@ export function resourceName(language: Language, resourceId: string): string {
   if (resourceId === "stone") return t(language, "resource.stone");
   if (resourceId === "food") return t(language, "resource.food");
   return resourceId;
+}
+
+export function itemName(language: Language, itemId: string): string {
+  if (itemId === "axe") return t(language, "item.axe");
+  return itemId;
 }
 
 export function buildingName(language: Language, buildingId: string): string {

@@ -19,7 +19,7 @@ export const RESOURCE_DEFINITIONS: readonly ResourceDefinition[] = [
   {
     id: "wood",
     name: "Trä",
-    icon: "🌲",
+    icon: "W",
     rarity: "common",
     spawnWeight: 45,
     minUnlockLevel: 1,
@@ -29,7 +29,7 @@ export const RESOURCE_DEFINITIONS: readonly ResourceDefinition[] = [
   {
     id: "stone",
     name: "Sten",
-    icon: "◆",
+    icon: "S",
     rarity: "common",
     spawnWeight: 35,
     minUnlockLevel: 1,
@@ -39,7 +39,7 @@ export const RESOURCE_DEFINITIONS: readonly ResourceDefinition[] = [
   {
     id: "food",
     name: "Mat",
-    icon: "✦",
+    icon: "F",
     rarity: "common",
     spawnWeight: 25,
     minUnlockLevel: 1,

@@ -132,7 +132,42 @@ input {
     0 8px 20px rgba(0, 0, 0, 0.36);
   color: #f5b84b;
   font-size: 17px;
+  font-weight: 950;
   line-height: 1;
+}
+
+.runhold-map-object-wood {
+  background: #17341f;
+  box-shadow:
+    0 0 0 4px rgba(67, 217, 173, 0.16),
+    0 8px 20px rgba(0, 0, 0, 0.36);
+  color: #9ee6a8;
+}
+
+.runhold-map-object-stone {
+  background: #29323b;
+  box-shadow:
+    0 0 0 4px rgba(184, 197, 207, 0.18),
+    0 8px 20px rgba(0, 0, 0, 0.36);
+  color: #dbe7ef;
+}
+
+.runhold-map-object-food {
+  background: #3a2615;
+  box-shadow:
+    0 0 0 4px rgba(245, 184, 75, 0.18),
+    0 8px 20px rgba(0, 0, 0, 0.36);
+  color: #ffd36e;
+}
+
+.runhold-map-object-chest {
+  border-color: #ffe5ad;
+  background: #442c13;
+  box-shadow:
+    0 0 0 4px rgba(245, 184, 75, 0.2),
+    0 0 20px rgba(245, 184, 75, 0.34),
+    0 8px 20px rgba(0, 0, 0, 0.36);
+  color: #ffe5ad;
 }
 
 @media (display-mode: standalone) {

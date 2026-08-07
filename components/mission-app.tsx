@@ -28,11 +28,18 @@ function MissionAppContent({
   onProfileChanged: () => Promise<void>;
 }) {
   const [activeTab, setActiveTab] = useState<AppTabId>("base");
+  const [expeditionActive, setExpeditionActive] = useState(false);
   const { t } = useI18n();
+  const showExpedition = activeTab === "expedition" || expeditionActive;
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col gap-4 px-4 pb-24 pt-5">
-      <header className="flex items-center justify-between gap-3">
+    <main
+      className={`mx-auto flex min-h-dvh w-full flex-col ${
+        expeditionActive ? "max-w-none gap-0 p-0" : "max-w-3xl gap-4 px-4 pb-24 pt-5"
+      }`}
+    >
+      {!expeditionActive ? (
+        <header className="flex items-center justify-between gap-3">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#43d9ad]">
             {username}
@@ -59,21 +66,29 @@ function MissionAppContent({
             <LogOut aria-hidden="true" size={20} />
           </button>
         </div>
-      </header>
-
-      {activeTab === "base" ? <BaseOverview userId={userId} /> : null}
-      {activeTab === "expedition" ? (
-        <ExpeditionView userId={userId} onProfileChanged={onProfileChanged} />
+        </header>
       ) : null}
-      {activeTab === "tech" ? (
+
+      {activeTab === "base" && !expeditionActive ? <BaseOverview userId={userId} /> : null}
+      {showExpedition ? (
+        <ExpeditionView
+          userId={userId}
+          onProfileChanged={onProfileChanged}
+          onActiveChange={setExpeditionActive}
+          hidden={activeTab !== "expedition" && expeditionActive}
+        />
+      ) : null}
+      {activeTab === "tech" && !expeditionActive ? (
         <TechOverview
           userId={userId}
           xp={gameProfile.xp}
           onChanged={onProfileChanged}
         />
       ) : null}
-      {activeTab === "inventory" ? <ResourceInventory userId={userId} /> : null}
-      {activeTab === "profile" ? (
+      {activeTab === "inventory" && !expeditionActive ? (
+        <ResourceInventory userId={userId} />
+      ) : null}
+      {activeTab === "profile" && !expeditionActive ? (
         <ProfileOverview
           profile={gameProfile}
           username={username}
@@ -82,7 +97,9 @@ function MissionAppContent({
         />
       ) : null}
 
-      <AppBottomNav activeTab={activeTab} onTabChange={setActiveTab} />
+      {!expeditionActive ? (
+        <AppBottomNav activeTab={activeTab} onTabChange={setActiveTab} />
+      ) : null}
     </main>
   );
 }

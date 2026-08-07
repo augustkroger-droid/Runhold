@@ -79,7 +79,13 @@ export function useMapObjects() {
       objectId: string;
       position: Coordinate;
       expeditionId: string;
-    }): Promise<{ resourceId: string; quantity: number }> => {
+    }): Promise<{
+      objectKind: "resource" | "chest";
+      resourceId: string;
+      quantity: number;
+      itemId: string;
+      itemQuantity: number;
+    }> => {
       setCollecting(true);
       setError(null);
 
@@ -103,13 +109,22 @@ export function useMapObjects() {
       }
 
       const row = (Array.isArray(data) ? data[0] : data) as
-        | { resource_id?: string; quantity?: number }
+        | {
+            object_kind?: string;
+            resource_id?: string | null;
+            quantity?: number;
+            item_id?: string | null;
+            item_quantity?: number;
+          }
         | null;
       setObjects((current) => current.filter((object) => object.id !== objectId));
       setCollecting(false);
       return {
+        objectKind: row?.object_kind === "chest" ? "chest" : "resource",
         resourceId: row?.resource_id ?? "",
         quantity: Number(row?.quantity) || 0,
+        itemId: row?.item_id ?? "",
+        itemQuantity: Number(row?.item_quantity) || 0,
       };
     },
     [],

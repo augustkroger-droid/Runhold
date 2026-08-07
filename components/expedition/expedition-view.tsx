@@ -10,13 +10,14 @@ import { useScreenWakeLock } from "@/hooks/use-screen-wake-lock";
 import { MapLoader } from "@/components/map/map-loader";
 import { useI18n } from "@/components/i18n-provider";
 import type { Coordinate } from "@/lib/game/gps/position";
+import type { ExpeditionRoutePoint } from "@/lib/game/state/player-expeditions";
 import { haversineDistanceMeters } from "@/lib/geo/haversine";
 import {
   EXPEDITION_CONFIG,
   calculateExpeditionXp,
 } from "@/lib/game/systems/expedition";
 import { MAP_OBJECT_CONFIG } from "@/lib/game/definitions/map-objects";
-import { resourceName } from "@/lib/i18n";
+import { itemName, resourceName } from "@/lib/i18n";
 
 function formatDistance(distanceM: number): string {
   if (distanceM >= 1000) {
@@ -31,6 +32,15 @@ function formatElapsed(milliseconds: number): string {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
+function formatPace(distanceM: number, durationSeconds: number): string {
+  if (distanceM < 100 || durationSeconds <= 0) return "--";
+
+  const totalSecondsPerKm = Math.round(durationSeconds / (distanceM / 1000));
+  const minutes = Math.floor(totalSecondsPerKm / 60);
+  const seconds = totalSecondsPerKm % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}/km`;
 }
 
 function positionErrorKey(error: GeolocationPositionError) {
@@ -48,9 +58,13 @@ function positionErrorKey(error: GeolocationPositionError) {
 export function ExpeditionView({
   userId,
   onProfileChanged,
+  onActiveChange,
+  hidden = false,
 }: {
   userId: string;
   onProfileChanged: () => Promise<void>;
+  onActiveChange?: (active: boolean) => void;
+  hidden?: boolean;
 }) {
   const { startWatch, stopWatch } = useGeolocationWatch();
   const { language, t } = useI18n();
@@ -87,8 +101,12 @@ export function ExpeditionView({
     durationSeconds: number;
     xpEarned: number;
     resourceHaul: Record<string, number>;
+    itemHaul: Record<string, number>;
+    routePoints: ExpeditionRoutePoint[];
   } | null>(null);
   const [currentHaul, setCurrentHaul] = useState<Record<string, number>>({});
+  const [currentItemHaul, setCurrentItemHaul] = useState<Record<string, number>>({});
+  const [routePoints, setRoutePoints] = useState<ExpeditionRoutePoint[]>([]);
 
   const lastReadingRef = useRef<Coordinate | null>(null);
   const distanceRef = useRef(0);
@@ -97,23 +115,56 @@ export function ExpeditionView({
   const mapObjectsRef = useRef(mapObjects);
   const collectingObjectIdsRef = useRef<Set<string>>(new Set());
   const expeditionIdRef = useRef<string | null>(null);
+  const routePointsRef = useRef<ExpeditionRoutePoint[]>([]);
+  const autoScanInFlightRef = useRef(false);
+  const lastAutoScanAtRef = useRef(0);
 
   const scannerRadiusM = unlockedTechIds.has("improved_scanner")
     ? 2500
     : EXPEDITION_CONFIG.scannerRadiusM;
   const durationMs = startedAt ? elapsedNow - startedAt : 0;
+  const durationSeconds = Math.round(durationMs / 1000);
   const estimatedXp = useMemo(
     () =>
       calculateExpeditionXp({
         distanceM,
-        durationSeconds: Math.round(durationMs / 1000),
+        durationSeconds,
       }),
-    [distanceM, durationMs],
+    [distanceM, durationSeconds],
   );
+  const currentPace = formatPace(distanceM, durationSeconds);
+
+  useEffect(() => {
+    onActiveChange?.(isActive);
+  }, [isActive, onActiveChange]);
 
   useEffect(() => {
     mapObjectsRef.current = mapObjects;
   }, [mapObjects]);
+
+  const appendRoutePoint = useCallback((reading: GeoReading) => {
+    if (reading.accuracyM > EXPEDITION_CONFIG.maxAccurateReadingM) return;
+
+    const point: ExpeditionRoutePoint = {
+      lat: reading.position.lat,
+      lng: reading.position.lng,
+      timestamp: reading.timestamp,
+      accuracyM: reading.accuracyM,
+    };
+    const previousPoint = routePointsRef.current.at(-1);
+
+    if (
+      previousPoint &&
+      reading.timestamp - previousPoint.timestamp < 3000 &&
+      haversineDistanceMeters(previousPoint, reading.position) < 5
+    ) {
+      return;
+    }
+
+    const nextPoints = [...routePointsRef.current, point].slice(-5000);
+    routePointsRef.current = nextPoints;
+    setRoutePoints(nextPoints);
+  }, []);
 
   const handleReading = useCallback(
     (reading: GeoReading) => {
@@ -121,6 +172,8 @@ export function ExpeditionView({
       setAccuracyM(reading.accuracyM);
 
       if (startedAtRef.current !== null) {
+        appendRoutePoint(reading);
+
         for (const object of mapObjectsRef.current) {
           if (collectingObjectIdsRef.current.has(object.id)) continue;
 
@@ -142,13 +195,29 @@ export function ExpeditionView({
               .then((collected) => {
                 const pickedResourceId = collected.resourceId || object.resourceId;
                 const pickedQuantity = collected.quantity || object.quantity;
-                setCurrentHaul((current) => ({
-                  ...current,
-                  [pickedResourceId]: (current[pickedResourceId] ?? 0) + pickedQuantity,
-                }));
-                setMessage(
-                  `+${pickedQuantity} ${resourceName(language, pickedResourceId)}`,
-                );
+                const pickedItemId = collected.itemId;
+                const pickedItemQuantity = collected.itemQuantity;
+
+                if (pickedResourceId && pickedQuantity > 0) {
+                  setCurrentHaul((current) => ({
+                    ...current,
+                    [pickedResourceId]:
+                      (current[pickedResourceId] ?? 0) + pickedQuantity,
+                  }));
+                  setMessage(
+                    `+${pickedQuantity} ${resourceName(language, pickedResourceId)}`,
+                  );
+                }
+
+                if (pickedItemId && pickedItemQuantity > 0) {
+                  setCurrentItemHaul((current) => ({
+                    ...current,
+                    [pickedItemId]: (current[pickedItemId] ?? 0) + pickedItemQuantity,
+                  }));
+                  setMessage(
+                    `+${pickedItemQuantity} ${itemName(language, pickedItemId)}`,
+                  );
+                }
               })
               .catch((error) => {
                 setMessage(
@@ -175,7 +244,7 @@ export function ExpeditionView({
       distanceRef.current += delta;
       setDistanceM(distanceRef.current);
     },
-    [collectObject, language, t],
+    [appendRoutePoint, collectObject, language, t],
   );
 
   function clearElapsedTimer() {
@@ -210,28 +279,83 @@ export function ExpeditionView({
     );
   }, [t]);
 
+  const runScan = useCallback(
+    async (center: Coordinate, { silent = false }: { silent?: boolean } = {}) => {
+      try {
+        const scannedObjects = await scanObjects({
+          center,
+          scanRadiusM: scannerRadiusM,
+        });
+        setScanActive(true);
+
+        if (!silent) {
+          setMessage(
+            t("expedition.scanActive", {
+              radius: formatDistance(scannerRadiusM),
+              count: scannedObjects.length,
+            }),
+          );
+        }
+
+        return scannedObjects;
+      } catch (error) {
+        if (!silent) {
+          setMessage(
+            error instanceof Error ? error.message : t("expedition.scanError"),
+          );
+        }
+
+        throw error;
+      }
+    },
+    [scanObjects, scannerRadiusM, t],
+  );
+
   const scan = useCallback(async () => {
     if (!current) {
       setMessage(t("expedition.needPosition"));
       return;
     }
 
-    try {
-      const scannedObjects = await scanObjects({
-        center: current,
-        scanRadiusM: scannerRadiusM,
-      });
-      setScanActive(true);
-      setMessage(
-        t("expedition.scanActive", {
-          radius: formatDistance(scannerRadiusM),
-          count: scannedObjects.length,
-        }),
-      );
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : t("expedition.scanError"));
+    await runScan(current, { silent: false }).catch(() => undefined);
+  }, [current, runScan, t]);
+
+  useEffect(() => {
+    if (!current || (status !== "ready" && status !== "active")) return;
+
+    let cancelled = false;
+
+    async function autoScan() {
+      if (!current || autoScanInFlightRef.current) return;
+
+      const now = Date.now();
+      if (now - lastAutoScanAtRef.current < 30_000) return;
+
+      autoScanInFlightRef.current = true;
+      lastAutoScanAtRef.current = now;
+
+      try {
+        await runScan(current, { silent: true });
+      } catch {
+        // Manual scan still surfaces errors; auto scan stays quiet.
+      } finally {
+        if (!cancelled) {
+          autoScanInFlightRef.current = false;
+        }
+      }
     }
-  }, [current, scanObjects, scannerRadiusM, t]);
+
+    void autoScan();
+    const intervalId = window.setInterval(() => {
+      void autoScan();
+    }, 30_000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+      autoScanInFlightRef.current = false;
+    };
+  }, [current, runScan, status]);
 
   const startActiveWatch = useCallback(() => {
     startWatch({
@@ -253,10 +377,19 @@ export function ExpeditionView({
       setStart(current);
       setDistanceM(0);
       setCurrentHaul({});
+      setCurrentItemHaul({});
       setLastResult(null);
       distanceRef.current = 0;
       lastReadingRef.current = current;
       const now = Date.now();
+      const initialRoutePoint = {
+        lat: current.lat,
+        lng: current.lng,
+        timestamp: now,
+        accuracyM: accuracyM ?? 0,
+      };
+      routePointsRef.current = [initialRoutePoint];
+      setRoutePoints([initialRoutePoint]);
       setStartedAt(now);
       setElapsedNow(now);
       startedAtRef.current = now;
@@ -265,12 +398,13 @@ export function ExpeditionView({
         setElapsedNow(Date.now());
       }, 1000);
       setMessage(t("expedition.started"));
+      void runScan(current, { silent: true }).catch(() => undefined);
 
       startActiveWatch();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : t("expedition.saveError"));
     }
-  }, [createExpedition, current, locate, startActiveWatch, t]);
+  }, [accuracyM, createExpedition, current, locate, runScan, startActiveWatch, t]);
 
   useEffect(() => {
     if (!isActive) return;
@@ -314,14 +448,19 @@ export function ExpeditionView({
         expeditionId,
         distanceM: finalDistanceM,
         durationSeconds,
+        routePoints: routePointsRef.current,
       });
       setLastResult({
         distanceM: result.expedition.distanceM,
         durationSeconds: result.expedition.durationSeconds,
         xpEarned: result.expedition.xpEarned,
         resourceHaul: result.expedition.resourceHaul,
+        itemHaul: result.expedition.itemHaul,
+        routePoints: result.expedition.routePoints,
       });
       setCurrentHaul({});
+      setCurrentItemHaul({});
+      setRoutePoints(result.expedition.routePoints);
       setMessage(t("expedition.done", { xp: result.expedition.xpEarned }));
       await onProfileChanged();
     } catch (error) {
@@ -343,11 +482,121 @@ export function ExpeditionView({
     setScanActive(false);
     setLastResult(null);
     setCurrentHaul({});
+    setCurrentItemHaul({});
+    setRoutePoints([]);
     lastReadingRef.current = null;
     distanceRef.current = 0;
     startedAtRef.current = null;
     expeditionIdRef.current = null;
+    routePointsRef.current = [];
   }, [stopWatch]);
+
+  if (hidden) {
+    return <section className="hidden" aria-hidden="true" />;
+  }
+
+  if (isActive) {
+    return (
+      <section className="fixed inset-0 z-[1200] overflow-hidden bg-[#071018]">
+        <div className="h-dvh w-full">
+          {current ? (
+            <MapLoader
+              start={start ?? current}
+              destination={null}
+              current={current}
+              canSelectDestination={false}
+              showStartRadius={false}
+              scanRadiusM={scanActive ? scannerRadiusM : null}
+              mapObjects={scanActive ? mapObjects : []}
+              routePoints={routePoints}
+              centerLabel={t("expedition.centerMap")}
+              onDestinationSelect={() => undefined}
+            />
+          ) : null}
+        </div>
+
+        <div className="absolute inset-x-3 top-[max(0.75rem,env(safe-area-inset-top))] z-[1300] grid grid-cols-4 gap-2">
+          <div className="rounded-lg border border-white/10 bg-[#071018]/88 p-2 backdrop-blur">
+            <p className="text-[0.6rem] font-black uppercase tracking-[0.12em] text-[#aeb9b6]">
+              {t("expedition.distance")}
+            </p>
+            <p className="text-base font-black text-white">{formatDistance(distanceM)}</p>
+          </div>
+          <div className="rounded-lg border border-white/10 bg-[#071018]/88 p-2 backdrop-blur">
+            <p className="text-[0.6rem] font-black uppercase tracking-[0.12em] text-[#aeb9b6]">
+              {t("expedition.time")}
+            </p>
+            <p className="text-base font-black text-white">{formatElapsed(durationMs)}</p>
+          </div>
+          <div className="rounded-lg border border-white/10 bg-[#071018]/88 p-2 backdrop-blur">
+            <p className="text-[0.6rem] font-black uppercase tracking-[0.12em] text-[#aeb9b6]">
+              {t("expedition.pace")}
+            </p>
+            <p className="text-base font-black text-white">{currentPace}</p>
+          </div>
+          <div className="rounded-lg border border-[#f5b84b]/30 bg-[#2b2414]/90 p-2 backdrop-blur">
+            <p className="text-[0.6rem] font-black uppercase tracking-[0.12em] text-[#f5b84b]">
+              XP
+            </p>
+            <p className="text-base font-black text-white">{estimatedXp}</p>
+          </div>
+        </div>
+
+        <div className="absolute inset-x-3 bottom-[max(0.8rem,env(safe-area-inset-bottom))] z-[1300] rounded-lg border border-white/10 bg-[#071018]/90 p-3 shadow-2xl backdrop-blur">
+          <div className="mb-3 flex items-center justify-between gap-3 text-xs font-bold text-[#aeb9b6]">
+            <span>
+              {wakeLockStatus === "active" ? `${t("expedition.awake")} · ` : ""}
+              GPS {accuracyM ? `${Math.round(accuracyM)} m` : "--"}
+            </span>
+            <button
+              type="button"
+              className="rounded-md border border-[#43d9ad]/40 px-3 py-2 font-black text-[#d7fff0]"
+              onClick={scan}
+              disabled={scanning}
+            >
+              {scanning ? t("expedition.scanning") : t("expedition.scan")}
+            </button>
+          </div>
+
+          {Object.keys(currentHaul).length > 0 || Object.keys(currentItemHaul).length > 0 ? (
+            <div className="mb-3 flex flex-wrap gap-2">
+              {Object.entries(currentHaul).map(([resourceId, quantity]) => (
+                <span
+                  key={resourceId}
+                  className="rounded-full bg-[#14342d] px-3 py-1 text-sm font-black text-[#d7fff0]"
+                >
+                  +{quantity} {resourceName(language, resourceId)}
+                </span>
+              ))}
+              {Object.entries(currentItemHaul).map(([itemId, quantity]) => (
+                <span
+                  key={itemId}
+                  className="rounded-full bg-[#2b2414] px-3 py-1 text-sm font-black text-[#ffe5ad]"
+                >
+                  +{quantity} {itemName(language, itemId)}
+                </span>
+              ))}
+            </div>
+          ) : null}
+
+          <button
+            type="button"
+            className="flex min-h-14 w-full items-center justify-center gap-2 rounded-md bg-[#5f2f2f] px-4 font-black text-white disabled:cursor-wait disabled:opacity-60"
+            disabled={saving}
+            onClick={stopExpedition}
+          >
+            <Square aria-hidden="true" size={19} />
+            {t("expedition.stop")}
+          </button>
+          {message || saveError || mapObjectError ? (
+            <p className="mt-3 text-sm leading-6 text-[#d7e1dd]">
+              {message ?? saveError ?? mapObjectError}
+            </p>
+          ) : null}
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="grid gap-4">
@@ -361,6 +610,8 @@ export function ExpeditionView({
             showStartRadius={false}
             scanRadiusM={scanActive ? scannerRadiusM : null}
             mapObjects={scanActive ? mapObjects : []}
+            routePoints={lastResult?.routePoints ?? routePoints}
+            centerLabel={t("expedition.centerMap")}
             onDestinationSelect={() => undefined}
           />
         ) : (
@@ -373,7 +624,7 @@ export function ExpeditionView({
         )}
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-4 gap-2">
         <div className="rounded-lg border border-white/10 bg-[#18232d] p-3">
           <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#aeb9b6]">
             {t("expedition.distance")}
@@ -385,6 +636,12 @@ export function ExpeditionView({
             {t("expedition.time")}
           </p>
           <p className="mt-1 text-xl font-black text-white">{formatElapsed(durationMs)}</p>
+        </div>
+        <div className="rounded-lg border border-white/10 bg-[#18232d] p-3">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#aeb9b6]">
+            {t("expedition.pace")}
+          </p>
+          <p className="mt-1 text-lg font-black text-white">{currentPace}</p>
         </div>
         <div className="rounded-lg border border-[#f5b84b]/30 bg-[#2b2414] p-3">
           <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#f5b84b]">
@@ -442,18 +699,6 @@ export function ExpeditionView({
             </>
           ) : null}
 
-          {status === "active" ? (
-            <button
-              type="button"
-              className="flex min-h-14 w-full items-center justify-center gap-2 rounded-md bg-[#5f2f2f] px-4 font-black text-white disabled:cursor-wait disabled:opacity-60"
-              disabled={saving}
-              onClick={stopExpedition}
-            >
-              <Square aria-hidden="true" size={19} />
-              {t("expedition.stop")}
-            </button>
-          ) : null}
-
           {status === "done" ? (
             <button
               type="button"
@@ -469,7 +714,7 @@ export function ExpeditionView({
       {lastResult ? (
         <section className="rounded-lg border border-[#43d9ad]/30 bg-[#14342d] p-4">
           <h2 className="text-lg font-black text-white">{t("expedition.result")}</h2>
-          <dl className="mt-3 grid grid-cols-3 gap-3 text-sm">
+          <dl className="mt-3 grid grid-cols-4 gap-2 text-sm">
             <div className="rounded-md bg-[#0f211c] p-3">
               <dt className="text-[#a9cfc3]">{t("expedition.distance")}</dt>
               <dd className="mt-1 font-black text-white">
@@ -480,6 +725,12 @@ export function ExpeditionView({
               <dt className="text-[#a9cfc3]">{t("expedition.time")}</dt>
               <dd className="mt-1 font-black text-white">
                 {formatElapsed(lastResult.durationSeconds * 1000)}
+              </dd>
+            </div>
+            <div className="rounded-md bg-[#0f211c] p-3">
+              <dt className="text-[#a9cfc3]">{t("expedition.pace")}</dt>
+              <dd className="mt-1 font-black text-white">
+                {formatPace(lastResult.distanceM, lastResult.durationSeconds)}
               </dd>
             </div>
             <div className="rounded-md bg-[#0f211c] p-3">
@@ -505,23 +756,22 @@ export function ExpeditionView({
               <p className="mt-2 text-sm text-[#a9cfc3]">{t("expedition.noHaul")}</p>
             )}
           </div>
-        </section>
-      ) : null}
-
-      {status === "active" && Object.keys(currentHaul).length > 0 ? (
-        <section className="rounded-lg border border-white/10 bg-[#18232d] p-4">
-          <h2 className="font-black text-white">{t("expedition.haul")}</h2>
-          <div className="mt-2 grid gap-2">
-            {Object.entries(currentHaul).map(([resourceId, quantity]) => (
-              <div
-                key={resourceId}
-                className="flex items-center justify-between text-sm font-bold text-[#c9d4d0]"
-              >
-                <span>{resourceName(language, resourceId)}</span>
-                <span className="text-white">+{quantity}</span>
+          {Object.keys(lastResult.itemHaul).length > 0 ? (
+            <div className="mt-3 rounded-md bg-[#0f211c] p-3">
+              <h3 className="font-black text-white">{t("expedition.items")}</h3>
+              <div className="mt-2 grid gap-2">
+                {Object.entries(lastResult.itemHaul).map(([itemId, quantity]) => (
+                  <div
+                    key={itemId}
+                    className="flex items-center justify-between text-sm font-bold text-[#c9d4d0]"
+                  >
+                    <span>{itemName(language, itemId)}</span>
+                    <span className="text-white">+{quantity}</span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </div>
+          ) : null}
         </section>
       ) : null}
 

@@ -1,3 +1,10 @@
+import type { Coordinate } from "@/lib/game/gps/position";
+
+export type ExpeditionRoutePoint = Coordinate & {
+  timestamp: number;
+  accuracyM: number;
+};
+
 export type PlayerExpedition = {
   id: string;
   startedAt: string;
@@ -6,6 +13,8 @@ export type PlayerExpedition = {
   durationSeconds: number;
   xpEarned: number;
   resourceHaul: Record<string, number>;
+  itemHaul: Record<string, number>;
+  routePoints: ExpeditionRoutePoint[];
 };
 
 export type PlayerExpeditionRow = {
@@ -17,6 +26,8 @@ export type PlayerExpeditionRow = {
   duration_seconds: number;
   xp_earned: number;
   resource_haul?: Record<string, number> | null;
+  item_haul?: Record<string, number> | null;
+  route_points?: ExpeditionRoutePoint[] | null;
 };
 
 export function mapPlayerExpeditionRow(row: PlayerExpeditionRow): PlayerExpedition {
@@ -28,5 +39,7 @@ export function mapPlayerExpeditionRow(row: PlayerExpeditionRow): PlayerExpediti
     durationSeconds: row.duration_seconds,
     xpEarned: row.xp_earned,
     resourceHaul: row.resource_haul ?? {},
+    itemHaul: row.item_haul ?? {},
+    routePoints: Array.isArray(row.route_points) ? row.route_points : [],
   };
 }

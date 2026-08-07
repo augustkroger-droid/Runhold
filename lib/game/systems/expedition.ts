@@ -1,6 +1,8 @@
 export const EXPEDITION_CONFIG = {
   scannerRadiusM: 2000,
   maxAccurateReadingM: 60,
+  minMovementM: 8,
+  minRoutePointDistanceM: 10,
   minDistanceForXpM: 100,
 } as const;
 

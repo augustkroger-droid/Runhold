@@ -40,7 +40,44 @@ function expeditionErrorMessage(message: string): string {
 export function usePlayerExpeditions(userId: string | null) {
   const [starting, setStarting] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [history, setHistory] = useState<PlayerExpedition[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  const loadHistory = useCallback(async () => {
+    if (!userId) {
+      setHistory([]);
+      return [];
+    }
+
+    setLoadingHistory(true);
+    setError(null);
+
+    const supabase = getSupabaseClient();
+    const { data, error: historyError } = await supabase
+      .from("player_expeditions")
+      .select(
+        "id,user_id,started_at,ended_at,distance_m,duration_seconds,xp_earned,resource_haul,item_haul,route_points",
+      )
+      .eq("user_id", userId)
+      .eq("status", "completed")
+      .order("ended_at", { ascending: false })
+      .limit(12);
+
+    if (historyError) {
+      const message = expeditionErrorMessage(historyError.message);
+      setLoadingHistory(false);
+      setError(message);
+      throw new Error(message);
+    }
+
+    const expeditions = ((data ?? []) as PlayerExpeditionRow[]).map(
+      mapPlayerExpeditionRow,
+    );
+    setHistory(expeditions);
+    setLoadingHistory(false);
+    return expeditions;
+  }, [userId]);
 
   const startExpedition = useCallback(async (): Promise<PlayerExpedition> => {
     if (!userId) {
@@ -122,18 +159,22 @@ export function usePlayerExpeditions(userId: string | null) {
       }
 
       setSaving(false);
+      void loadHistory().catch(() => undefined);
       return {
         expedition: mapPlayerExpeditionRow(row),
         totalXp: row.total_xp,
       };
     },
-    [userId],
+    [loadHistory, userId],
   );
 
   return {
     starting,
     saving,
+    loadingHistory,
+    history,
     error,
+    loadHistory,
     startExpedition,
     completeExpedition,
   };

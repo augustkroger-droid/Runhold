@@ -30,7 +30,6 @@ function MissionAppContent({
   const [activeTab, setActiveTab] = useState<AppTabId>("base");
   const [expeditionActive, setExpeditionActive] = useState(false);
   const { t } = useI18n();
-  const showExpedition = activeTab === "expedition" || expeditionActive;
 
   return (
     <main
@@ -70,14 +69,13 @@ function MissionAppContent({
       ) : null}
 
       {activeTab === "base" && !expeditionActive ? <BaseOverview userId={userId} /> : null}
-      {showExpedition ? (
-        <ExpeditionView
-          userId={userId}
-          onProfileChanged={onProfileChanged}
-          onActiveChange={setExpeditionActive}
-          hidden={activeTab !== "expedition" && expeditionActive}
-        />
-      ) : null}
+      <ExpeditionView
+        userId={userId}
+        onProfileChanged={onProfileChanged}
+        onActiveChange={setExpeditionActive}
+        visible={activeTab === "expedition" || expeditionActive}
+        hidden={activeTab !== "expedition" && !expeditionActive}
+      />
       {activeTab === "tech" && !expeditionActive ? (
         <TechOverview
           userId={userId}

@@ -19,6 +19,9 @@ import {
 import { MAP_OBJECT_CONFIG } from "@/lib/game/definitions/map-objects";
 import { itemName, resourceName } from "@/lib/i18n";
 
+const DEFAULT_MAP_CENTER: Coordinate = { lat: 57.7815, lng: 14.1562 };
+const MAP_CENTER_STORAGE_KEY = "runhold.expedition.mapCenter";
+
 function formatDistance(distanceM: number): string {
   if (distanceM >= 1000) {
     return `${(distanceM / 1000).toFixed(2)} km`;
@@ -43,6 +46,10 @@ function formatPace(distanceM: number, durationSeconds: number): string {
   return `${minutes}:${seconds.toString().padStart(2, "0")}/km`;
 }
 
+function movementThresholdM(accuracyM: number, baseThresholdM: number): number {
+  return Math.max(baseThresholdM, Math.min(accuracyM * 0.35, 22));
+}
+
 function positionErrorKey(error: GeolocationPositionError) {
   if (error.code === error.PERMISSION_DENIED) {
     return "expedition.permissionDenied" as const;
@@ -55,15 +62,51 @@ function positionErrorKey(error: GeolocationPositionError) {
   return "expedition.positionError" as const;
 }
 
+function loadStoredMapCenter(): Coordinate {
+  if (typeof window === "undefined") return DEFAULT_MAP_CENTER;
+
+  const storedCenter = window.localStorage.getItem(MAP_CENTER_STORAGE_KEY);
+  if (!storedCenter) return DEFAULT_MAP_CENTER;
+
+  try {
+    const parsed = JSON.parse(storedCenter) as Partial<Coordinate>;
+    if (
+      typeof parsed.lat === "number" &&
+      typeof parsed.lng === "number" &&
+      Number.isFinite(parsed.lat) &&
+      Number.isFinite(parsed.lng)
+    ) {
+      return { lat: parsed.lat, lng: parsed.lng };
+    }
+  } catch {
+    return DEFAULT_MAP_CENTER;
+  }
+
+  return DEFAULT_MAP_CENTER;
+}
+
+function formatExpeditionDate(value: string | null, language: string): string {
+  if (!value) return "";
+
+  return new Intl.DateTimeFormat(language === "en" ? "en-US" : "sv-SE", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
 export function ExpeditionView({
   userId,
   onProfileChanged,
   onActiveChange,
+  visible,
   hidden = false,
 }: {
   userId: string;
   onProfileChanged: () => Promise<void>;
   onActiveChange?: (active: boolean) => void;
+  visible: boolean;
   hidden?: boolean;
 }) {
   const { startWatch, stopWatch } = useGeolocationWatch();
@@ -73,6 +116,9 @@ export function ExpeditionView({
     completeExpedition,
     starting,
     saving,
+    loadingHistory,
+    history,
+    loadHistory,
     error: saveError,
   } = usePlayerExpeditions(userId);
   const {
@@ -96,6 +142,8 @@ export function ExpeditionView({
   const [elapsedNow, setElapsedNow] = useState(() => Date.now());
   const [message, setMessage] = useState<string | null>(null);
   const [scanActive, setScanActive] = useState(false);
+  const [mapCenter, setMapCenter] = useState<Coordinate>(() => loadStoredMapCenter());
+  const [showResultSummary, setShowResultSummary] = useState(false);
   const [lastResult, setLastResult] = useState<{
     distanceM: number;
     durationSeconds: number;
@@ -109,6 +157,7 @@ export function ExpeditionView({
   const [routePoints, setRoutePoints] = useState<ExpeditionRoutePoint[]>([]);
 
   const lastReadingRef = useRef<Coordinate | null>(null);
+  const lastDisplayPositionRef = useRef<Coordinate | null>(null);
   const distanceRef = useRef(0);
   const startedAtRef = useRef<number | null>(null);
   const elapsedIntervalRef = useRef<number | null>(null);
@@ -118,6 +167,7 @@ export function ExpeditionView({
   const routePointsRef = useRef<ExpeditionRoutePoint[]>([]);
   const autoScanInFlightRef = useRef(false);
   const lastAutoScanAtRef = useRef(0);
+  const autoLocatedRef = useRef(false);
 
   const scannerRadiusM = unlockedTechIds.has("improved_scanner")
     ? 2500
@@ -142,6 +192,15 @@ export function ExpeditionView({
     mapObjectsRef.current = mapObjects;
   }, [mapObjects]);
 
+  useEffect(() => {
+    void loadHistory().catch(() => undefined);
+  }, [loadHistory]);
+
+  const saveViewedMapCenter = useCallback((center: Coordinate) => {
+    setMapCenter(center);
+    window.localStorage.setItem(MAP_CENTER_STORAGE_KEY, JSON.stringify(center));
+  }, []);
+
   const appendRoutePoint = useCallback((reading: GeoReading) => {
     if (reading.accuracyM > EXPEDITION_CONFIG.maxAccurateReadingM) return;
 
@@ -155,8 +214,11 @@ export function ExpeditionView({
 
     if (
       previousPoint &&
-      reading.timestamp - previousPoint.timestamp < 3000 &&
-      haversineDistanceMeters(previousPoint, reading.position) < 5
+      haversineDistanceMeters(previousPoint, reading.position) <
+        movementThresholdM(
+          reading.accuracyM,
+          EXPEDITION_CONFIG.minRoutePointDistanceM,
+        )
     ) {
       return;
     }
@@ -168,8 +230,19 @@ export function ExpeditionView({
 
   const handleReading = useCallback(
     (reading: GeoReading) => {
-      setCurrent(reading.position);
       setAccuracyM(reading.accuracyM);
+      const previousDisplayPosition = lastDisplayPositionRef.current;
+      const displayDeltaM = previousDisplayPosition
+        ? haversineDistanceMeters(previousDisplayPosition, reading.position)
+        : Number.POSITIVE_INFINITY;
+
+      if (
+        !previousDisplayPosition ||
+        displayDeltaM >= movementThresholdM(reading.accuracyM, EXPEDITION_CONFIG.minMovementM)
+      ) {
+        lastDisplayPositionRef.current = reading.position;
+        setCurrent(reading.position);
+      }
 
       if (startedAtRef.current !== null) {
         appendRoutePoint(reading);
@@ -239,7 +312,12 @@ export function ExpeditionView({
       if (!previous || startedAtRef.current === null) return;
 
       const delta = haversineDistanceMeters(previous, reading.position);
-      if (delta <= 0 || delta > 300) return;
+      if (
+        delta < movementThresholdM(reading.accuracyM, EXPEDITION_CONFIG.minMovementM) ||
+        delta > 300
+      ) {
+        return;
+      }
 
       distanceRef.current += delta;
       setDistanceM(distanceRef.current);
@@ -254,8 +332,15 @@ export function ExpeditionView({
     }
   }
 
-  const locate = useCallback(() => {
-    setMessage(null);
+  const locate = useCallback(({ silent = false }: { silent?: boolean } = {}) => {
+    if (!("geolocation" in navigator)) {
+      setMessage(t("expedition.positionError"));
+      return;
+    }
+
+    if (!silent) {
+      setMessage(null);
+    }
     setStatus("locating");
 
     navigator.geolocation.getCurrentPosition(
@@ -266,10 +351,15 @@ export function ExpeditionView({
         };
         setStart(point);
         setCurrent(point);
+        setMapCenter(point);
+        window.localStorage.setItem(MAP_CENTER_STORAGE_KEY, JSON.stringify(point));
         setAccuracyM(position.coords.accuracy);
         lastReadingRef.current = point;
+        lastDisplayPositionRef.current = point;
         setStatus("ready");
-        setMessage(t("expedition.positionReady"));
+        if (!silent) {
+          setMessage(t("expedition.positionReady"));
+        }
       },
       (error) => {
         setStatus("idle");
@@ -278,6 +368,13 @@ export function ExpeditionView({
       { enableHighAccuracy: true, maximumAge: 0, timeout: 15_000 },
     );
   }, [t]);
+
+  useEffect(() => {
+    if (!visible || isActive || autoLocatedRef.current || status !== "idle") return;
+
+    autoLocatedRef.current = true;
+    locate({ silent: true });
+  }, [isActive, locate, status, visible]);
 
   const runScan = useCallback(
     async (center: Coordinate, { silent = false }: { silent?: boolean } = {}) => {
@@ -321,7 +418,9 @@ export function ExpeditionView({
   }, [current, runScan, t]);
 
   useEffect(() => {
-    if (!current || (status !== "ready" && status !== "active")) return;
+    if (!current || (!visible && !isActive) || (status !== "ready" && status !== "active")) {
+      return;
+    }
 
     let cancelled = false;
 
@@ -355,7 +454,7 @@ export function ExpeditionView({
       window.clearInterval(intervalId);
       autoScanInFlightRef.current = false;
     };
-  }, [current, runScan, status]);
+  }, [current, isActive, runScan, status, visible]);
 
   const startActiveWatch = useCallback(() => {
     startWatch({
@@ -379,8 +478,10 @@ export function ExpeditionView({
       setCurrentHaul({});
       setCurrentItemHaul({});
       setLastResult(null);
+      setShowResultSummary(false);
       distanceRef.current = 0;
       lastReadingRef.current = current;
+      lastDisplayPositionRef.current = current;
       const now = Date.now();
       const initialRoutePoint = {
         lat: current.lat,
@@ -461,6 +562,7 @@ export function ExpeditionView({
       setCurrentHaul({});
       setCurrentItemHaul({});
       setRoutePoints(result.expedition.routePoints);
+      setShowResultSummary(true);
       setMessage(t("expedition.done", { xp: result.expedition.xpEarned }));
       await onProfileChanged();
     } catch (error) {
@@ -480,11 +582,13 @@ export function ExpeditionView({
     setElapsedNow(Date.now());
     setMessage(null);
     setScanActive(false);
+    setShowResultSummary(false);
     setLastResult(null);
     setCurrentHaul({});
     setCurrentItemHaul({});
     setRoutePoints([]);
     lastReadingRef.current = null;
+    lastDisplayPositionRef.current = null;
     distanceRef.current = 0;
     startedAtRef.current = null;
     expeditionIdRef.current = null;
@@ -510,6 +614,8 @@ export function ExpeditionView({
               mapObjects={scanActive ? mapObjects : []}
               routePoints={routePoints}
               centerLabel={t("expedition.centerMap")}
+              centerControlClassName="bottom-44 right-4"
+              onViewChange={saveViewedMapCenter}
               onDestinationSelect={() => undefined}
             />
           ) : null}
@@ -600,28 +706,102 @@ export function ExpeditionView({
 
   return (
     <section className="grid gap-4">
-      <div className="h-[52dvh] min-h-[420px] overflow-hidden rounded-lg border border-white/10 bg-[#18232d] shadow-2xl">
-        {current ? (
-          <MapLoader
-            start={start ?? current}
-            destination={null}
-            current={current}
-            canSelectDestination={false}
-            showStartRadius={false}
-            scanRadiusM={scanActive ? scannerRadiusM : null}
-            mapObjects={scanActive ? mapObjects : []}
-            routePoints={lastResult?.routePoints ?? routePoints}
-            centerLabel={t("expedition.centerMap")}
-            onDestinationSelect={() => undefined}
-          />
-        ) : (
-          <div className="grid h-full place-items-center p-6 text-center text-[#c9d4d0]">
-            <div>
-              <LocateFixed aria-hidden="true" className="mx-auto text-[#43d9ad]" size={34} />
-              <p className="mt-3 font-bold">{t("expedition.findPosition")}</p>
+      {showResultSummary && lastResult ? (
+        <div className="fixed inset-0 z-[1400] grid place-items-end bg-black/58 p-3 backdrop-blur-sm">
+          <section className="w-full rounded-lg border border-[#43d9ad]/30 bg-[#101820] p-4 shadow-2xl">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-[#43d9ad]">
+              {t("expedition.summary")}
+            </p>
+            <h2 className="mt-1 text-2xl font-black text-white">
+              {t("expedition.result")}
+            </h2>
+
+            <dl className="mt-4 grid grid-cols-4 gap-2 text-sm">
+              <div className="rounded-md bg-[#18232d] p-3">
+                <dt className="text-[#a9cfc3]">{t("expedition.distance")}</dt>
+                <dd className="mt-1 font-black text-white">
+                  {formatDistance(lastResult.distanceM)}
+                </dd>
+              </div>
+              <div className="rounded-md bg-[#18232d] p-3">
+                <dt className="text-[#a9cfc3]">{t("expedition.time")}</dt>
+                <dd className="mt-1 font-black text-white">
+                  {formatElapsed(lastResult.durationSeconds * 1000)}
+                </dd>
+              </div>
+              <div className="rounded-md bg-[#18232d] p-3">
+                <dt className="text-[#a9cfc3]">{t("expedition.pace")}</dt>
+                <dd className="mt-1 font-black text-white">
+                  {formatPace(lastResult.distanceM, lastResult.durationSeconds)}
+                </dd>
+              </div>
+              <div className="rounded-md bg-[#2b2414] p-3">
+                <dt className="text-[#f5b84b]">XP</dt>
+                <dd className="mt-1 font-black text-white">+{lastResult.xpEarned}</dd>
+              </div>
+            </dl>
+
+            <div className="mt-3 grid gap-2">
+              {Object.keys(lastResult.resourceHaul).length > 0 ? (
+                <div className="rounded-md bg-[#18232d] p-3">
+                  <h3 className="font-black text-white">{t("expedition.haul")}</h3>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {Object.entries(lastResult.resourceHaul).map(
+                      ([resourceId, quantity]) => (
+                        <span
+                          key={resourceId}
+                          className="rounded-full bg-[#14342d] px-3 py-1 text-sm font-black text-[#d7fff0]"
+                        >
+                          +{quantity} {resourceName(language, resourceId)}
+                        </span>
+                      ),
+                    )}
+                  </div>
+                </div>
+              ) : null}
+
+              {Object.keys(lastResult.itemHaul).length > 0 ? (
+                <div className="rounded-md bg-[#18232d] p-3">
+                  <h3 className="font-black text-white">{t("expedition.items")}</h3>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {Object.entries(lastResult.itemHaul).map(([itemId, quantity]) => (
+                      <span
+                        key={itemId}
+                        className="rounded-full bg-[#2b2414] px-3 py-1 text-sm font-black text-[#ffe5ad]"
+                      >
+                        +{quantity} {itemName(language, itemId)}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </div>
-          </div>
-        )}
+
+            <button
+              type="button"
+              className="mt-4 min-h-12 w-full rounded-md bg-[#43d9ad] px-4 font-black text-[#07110d]"
+              onClick={() => setShowResultSummary(false)}
+            >
+              {t("common.done")}
+            </button>
+          </section>
+        </div>
+      ) : null}
+
+      <div className="h-[52dvh] min-h-[420px] overflow-hidden rounded-lg border border-white/10 bg-[#18232d] shadow-2xl">
+        <MapLoader
+          start={start ?? current ?? mapCenter}
+          destination={null}
+          current={current}
+          canSelectDestination={false}
+          showStartRadius={false}
+          scanRadiusM={scanActive ? scannerRadiusM : null}
+          mapObjects={scanActive ? mapObjects : []}
+          routePoints={lastResult?.routePoints ?? routePoints}
+          centerLabel={t("expedition.centerMap")}
+          onViewChange={saveViewedMapCenter}
+          onDestinationSelect={() => undefined}
+        />
       </div>
 
       <div className="grid grid-cols-4 gap-2">
@@ -669,7 +849,7 @@ export function ExpeditionView({
               type="button"
               className="flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-[#315f36] px-4 font-black text-white disabled:cursor-wait disabled:opacity-60"
               disabled={status === "locating"}
-              onClick={locate}
+              onClick={() => locate()}
             >
               <LocateFixed aria-hidden="true" size={19} />
               {status === "locating" ? t("expedition.locating") : t("expedition.locate")}
@@ -780,6 +960,92 @@ export function ExpeditionView({
           {message ?? saveError ?? mapObjectError}
         </p>
       ) : null}
+
+      <section className="rounded-lg border border-white/10 bg-[#18232d] p-4">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="font-black text-white">{t("expedition.history")}</h2>
+          {loadingHistory ? (
+            <span className="text-xs font-bold uppercase tracking-[0.12em] text-[#aeb9b6]">
+              {t("common.loading")}
+            </span>
+          ) : null}
+        </div>
+
+        {history.length > 0 ? (
+          <div className="mt-3 grid gap-3">
+            {history.map((expedition) => (
+              <article
+                key={expedition.id}
+                className="rounded-md border border-white/10 bg-[#101820] p-3"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-bold text-[#aeb9b6]">
+                      {formatExpeditionDate(expedition.endedAt, language)}
+                    </p>
+                    <h3 className="mt-1 font-black text-white">
+                      {formatDistance(expedition.distanceM)}
+                    </h3>
+                  </div>
+                  <div className="rounded-md bg-[#2b2414] px-3 py-2 text-right">
+                    <p className="text-xs font-black text-[#f5b84b]">XP</p>
+                    <p className="font-black text-white">+{expedition.xpEarned}</p>
+                  </div>
+                </div>
+
+                <dl className="mt-3 grid grid-cols-3 gap-2 text-sm">
+                  <div className="rounded-md bg-[#18232d] p-2">
+                    <dt className="text-[#a9cfc3]">{t("expedition.time")}</dt>
+                    <dd className="font-black text-white">
+                      {formatElapsed(expedition.durationSeconds * 1000)}
+                    </dd>
+                  </div>
+                  <div className="rounded-md bg-[#18232d] p-2">
+                    <dt className="text-[#a9cfc3]">{t("expedition.pace")}</dt>
+                    <dd className="font-black text-white">
+                      {formatPace(expedition.distanceM, expedition.durationSeconds)}
+                    </dd>
+                  </div>
+                  <div className="rounded-md bg-[#18232d] p-2">
+                    <dt className="text-[#a9cfc3]">{t("expedition.routePoints")}</dt>
+                    <dd className="font-black text-white">
+                      {expedition.routePoints.length}
+                    </dd>
+                  </div>
+                </dl>
+
+                {Object.keys(expedition.resourceHaul).length > 0 ||
+                Object.keys(expedition.itemHaul).length > 0 ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {Object.entries(expedition.resourceHaul).map(
+                      ([resourceId, quantity]) => (
+                        <span
+                          key={resourceId}
+                          className="rounded-full bg-[#14342d] px-3 py-1 text-xs font-black text-[#d7fff0]"
+                        >
+                          +{quantity} {resourceName(language, resourceId)}
+                        </span>
+                      ),
+                    )}
+                    {Object.entries(expedition.itemHaul).map(([itemId, quantity]) => (
+                      <span
+                        key={itemId}
+                        className="rounded-full bg-[#2b2414] px-3 py-1 text-xs font-black text-[#ffe5ad]"
+                      >
+                        +{quantity} {itemName(language, itemId)}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-3 rounded-md bg-[#101820] p-3 text-sm text-[#aeb9b6]">
+            {t("expedition.historyEmpty")}
+          </p>
+        )}
+      </section>
     </section>
   );
 }

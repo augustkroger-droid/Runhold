@@ -89,10 +89,20 @@ function FollowCurrent({
   return null;
 }
 
-function MapFollowEvents({ onManualMove }: { onManualMove: () => void }) {
+function MapFollowEvents({
+  onManualMove,
+  onViewChange,
+}: {
+  onManualMove: () => void;
+  onViewChange?: (center: Coordinate) => void;
+}) {
   useMapEvents({
     dragstart: onManualMove,
     zoomstart: onManualMove,
+    moveend(event) {
+      const center = event.target.getCenter();
+      onViewChange?.({ lat: center.lat, lng: center.lng });
+    },
   });
 
   return null;
@@ -101,10 +111,12 @@ function MapFollowEvents({ onManualMove }: { onManualMove: () => void }) {
 function CenterControl({
   center,
   label,
+  className,
   onCentered,
 }: {
   center: Coordinate;
   label: string;
+  className: string;
   onCentered: () => void;
 }) {
   const map = useMap();
@@ -112,7 +124,7 @@ function CenterControl({
   return (
     <button
       type="button"
-      className="absolute bottom-4 right-4 z-[1000] grid size-12 place-items-center rounded-full border border-white/20 bg-[#101820]/92 text-white shadow-2xl backdrop-blur"
+      className={`absolute z-[1000] grid size-12 place-items-center rounded-full border border-white/20 bg-[#101820]/92 text-white shadow-2xl backdrop-blur ${className}`}
       aria-label={label}
       title={label}
       onClick={() => {
@@ -137,6 +149,8 @@ export function MissionMap({
   mapObjects = [],
   routePoints = [],
   centerLabel,
+  centerControlClassName = "bottom-4 right-4",
+  onViewChange,
   onDestinationSelect,
 }: {
   start: Coordinate;
@@ -148,6 +162,8 @@ export function MissionMap({
   mapObjects?: PlayerMapObject[];
   routePoints?: Coordinate[];
   centerLabel: string;
+  centerControlClassName?: string;
+  onViewChange?: (center: Coordinate) => void;
   onDestinationSelect: (point: Coordinate) => void;
 }) {
   const activeCenter = current ?? start;
@@ -174,10 +190,14 @@ export function MissionMap({
       />
       <ZoomControl position="topright" />
       <FollowCurrent center={activeCenter} following={following} />
-      <MapFollowEvents onManualMove={() => setFollowing(false)} />
+      <MapFollowEvents
+        onManualMove={() => setFollowing(false)}
+        onViewChange={onViewChange}
+      />
       <CenterControl
         center={activeCenter}
         label={centerLabel}
+        className={centerControlClassName}
         onCentered={() => setFollowing(true)}
       />
       <MapClickHandler

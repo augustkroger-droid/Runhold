@@ -1,6 +1,6 @@
 "use client";
 
-import { FlameKindling, ShieldAlert, Swords } from "lucide-react";
+import { Moon, ShieldAlert } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useI18n } from "@/components/i18n-provider";
 import { usePlayerRaids } from "@/hooks/use-player-raids";
@@ -41,20 +41,15 @@ export function RaidPanel({
   onChanged,
 }: {
   userId: string;
-  onChanged: () => Promise<void>;
+  onChanged?: () => Promise<void>;
 }) {
   const { language, t } = useI18n();
   const {
-    activeRaid,
     scheduledRaid,
     latestResolvedRaid,
     loading,
-    resolving,
-    signaling,
     error,
     loadRaids,
-    lightSignal,
-    resolveRaid,
   } = usePlayerRaids(userId);
   const [now, setNow] = useState(() => new Date().toISOString());
   const scheduledSnapshot = useMemo(() => {
@@ -87,17 +82,12 @@ export function RaidPanel({
     return () => window.clearTimeout(timeout);
   }, [loadRaids, scheduledSnapshot?.status]);
 
-  async function handleResolve() {
-    if (!activeRaid) return;
+  const latestResolvedRaidId = latestResolvedRaid?.id ?? null;
 
-    await resolveRaid(activeRaid.id);
-    await onChanged();
-  }
-
-  async function handleSignal() {
-    await lightSignal();
-    await onChanged();
-  }
+  useEffect(() => {
+    if (!latestResolvedRaidId) return;
+    void onChanged?.();
+  }, [latestResolvedRaidId, onChanged]);
 
   return (
     <section className="rounded-lg border border-[#f5b84b]/25 bg-[#151d24] p-4">
@@ -114,34 +104,12 @@ export function RaidPanel({
       </div>
 
       <div className="mt-3 grid gap-3">
-        {activeRaid ? (
-          <div className="rounded-md border border-red-400/25 bg-red-950/30 p-3">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.12em] text-red-200">
-                  {t("raid.active")}
-                </p>
-                <h3 className="mt-1 text-xl font-black text-white">
-                  {t("raid.threatLevel")} {activeRaid.threatLevel}
-                </h3>
-              </div>
-              <Swords aria-hidden="true" size={26} className="text-red-100" />
-            </div>
-            <button
-              type="button"
-              className="mt-3 flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-[#8d3b32] px-3 font-black text-white disabled:cursor-wait disabled:opacity-60"
-              disabled={resolving}
-              onClick={handleResolve}
-            >
-              <ShieldAlert aria-hidden="true" size={18} />
-              {resolving ? t("raid.resolving") : t("raid.defend")}
-            </button>
-          </div>
-        ) : scheduledRaid ? (
+        {scheduledRaid ? (
           <div className="rounded-md bg-[#101820] p-3">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#aeb9b6]">
+                <p className="flex items-center gap-1 text-xs font-bold uppercase tracking-[0.12em] text-[#aeb9b6]">
+                  <Moon aria-hidden="true" size={14} />
                   {t("raid.next")}
                 </p>
                 <h3 className="mt-1 text-xl font-black text-white">
@@ -157,6 +125,22 @@ export function RaidPanel({
                 <p className="font-black text-white">{scheduledRaid.threatLevel}</p>
               </div>
             </div>
+            <dl className="mt-3 grid grid-cols-3 gap-2 text-sm">
+              <div className="rounded-md bg-[#18232d] p-2">
+                <dt className="text-[#a9cfc3]">{t("raid.enemies")}</dt>
+                <dd className="font-black text-white">{scheduledRaid.enemyCount}</dd>
+              </div>
+              <div className="rounded-md bg-[#18232d] p-2">
+                <dt className="text-[#a9cfc3]">{t("raid.damage")}</dt>
+                <dd className="font-black text-white">{scheduledRaid.totalDamage}</dd>
+              </div>
+              <div className="rounded-md bg-[#18232d] p-2">
+                <dt className="text-[#a9cfc3]">XP</dt>
+                <dd className="font-black text-white">
+                  +{scheduledRaid.reward.xp ?? 0}
+                </dd>
+              </div>
+            </dl>
             <div className="mt-3 h-2 overflow-hidden rounded-full bg-black/30">
               <div
                 className="h-full rounded-full bg-[#f5b84b]"
@@ -165,15 +149,9 @@ export function RaidPanel({
                 }}
               />
             </div>
-            <button
-              type="button"
-              className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-[#315f36] px-3 font-black text-white disabled:cursor-wait disabled:opacity-60"
-              disabled={signaling}
-              onClick={handleSignal}
-            >
-              <FlameKindling aria-hidden="true" size={18} />
-              {signaling ? t("raid.signaling") : t("raid.signal")}
-            </button>
+            <p className="mt-3 text-sm font-bold text-[#c9d4d0]">
+              {t("raid.nightOnly")}
+            </p>
           </div>
         ) : null}
 
@@ -208,6 +186,21 @@ export function RaidPanel({
                 </dd>
               </div>
             </dl>
+            <div className="mt-2 flex flex-wrap gap-2 text-xs font-black">
+              {latestResolvedRaid.damageReport.fireProtected ? (
+                <span className="rounded-full bg-[#2b2414] px-3 py-1 text-[#ffe5ad]">
+                  {t("raid.fireProtected")}
+                </span>
+              ) : null}
+              {(latestResolvedRaid.damageReport.rewardXp ?? 0) > 0 ? (
+                <span className="rounded-full bg-[#14342d] px-3 py-1 text-[#d7fff0]">
+                  +{latestResolvedRaid.damageReport.rewardXp} XP
+                </span>
+              ) : null}
+              <span className="rounded-full bg-[#18232d] px-3 py-1 text-[#c9d4d0]">
+                {t("raid.enemies")} {latestResolvedRaid.damageReport.enemyCount ?? 0}
+              </span>
+            </div>
           </div>
         ) : null}
       </div>

@@ -12,8 +12,6 @@ type PlayerRaidsState = {
   loadedUserId: string | null;
   raids: PlayerRaid[];
   loading: boolean;
-  resolving: boolean;
-  signaling: boolean;
   error: string | null;
 };
 
@@ -34,8 +32,6 @@ export function usePlayerRaids(userId: string | null) {
     loadedUserId: null,
     raids: [],
     loading: Boolean(userId),
-    resolving: false,
-    signaling: false,
     error: null,
   });
 
@@ -45,8 +41,6 @@ export function usePlayerRaids(userId: string | null) {
         loadedUserId: null,
         raids: [],
         loading: false,
-        resolving: false,
-        signaling: false,
         error: null,
       });
       return;
@@ -81,69 +75,6 @@ export function usePlayerRaids(userId: string | null) {
     return () => window.clearTimeout(timeout);
   }, [loadRaids]);
 
-  const lightSignal = useCallback(async () => {
-    if (!userId) {
-      throw new Error("Du beh\u00f6ver vara inloggad.");
-    }
-
-    setState((current) => ({ ...current, signaling: true, error: null }));
-
-    const { data, error } = await getSupabaseClient().rpc("light_raid_signal");
-
-    if (error) {
-      const message = raidErrorMessage(error.message);
-      setState((current) => ({
-        ...current,
-        signaling: false,
-        error: message,
-      }));
-      throw new Error(message);
-    }
-
-    setState((current) => ({
-      ...current,
-      raids: ((data ?? []) as PlayerRaidRow[]).map(mapPlayerRaidRow),
-      signaling: false,
-      error: null,
-    }));
-  }, [userId]);
-
-  const resolveRaid = useCallback(
-    async (raidId: string) => {
-      if (!userId) {
-        throw new Error("Du beh\u00f6ver vara inloggad.");
-      }
-
-      setState((current) => ({ ...current, resolving: true, error: null }));
-
-      const { data, error } = await getSupabaseClient().rpc("resolve_player_raid", {
-        input_raid_id: raidId,
-      });
-
-      if (error) {
-        const message = raidErrorMessage(error.message);
-        setState((current) => ({
-          ...current,
-          resolving: false,
-          error: message,
-        }));
-        throw new Error(message);
-      }
-
-      setState((current) => ({
-        ...current,
-        raids: ((data ?? []) as PlayerRaidRow[]).map(mapPlayerRaidRow),
-        resolving: false,
-        error: null,
-      }));
-    },
-    [userId],
-  );
-
-  const activeRaid = useMemo(
-    () => state.raids.find((raid) => raid.status === "active") ?? null,
-    [state.raids],
-  );
   const scheduledRaid = useMemo(
     () => state.raids.find((raid) => raid.status === "scheduled") ?? null,
     [state.raids],
@@ -156,12 +87,9 @@ export function usePlayerRaids(userId: string | null) {
 
   return {
     ...state,
-    activeRaid,
     scheduledRaid,
     latestResolvedRaid,
     loading,
     loadRaids,
-    lightSignal,
-    resolveRaid,
   };
 }

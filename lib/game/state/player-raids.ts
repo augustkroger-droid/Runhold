@@ -5,6 +5,10 @@ export type RaidDamageReport = {
   blockedDamage: number;
   wallDamage: number;
   tentDamage: number;
+  enemyCount: number;
+  enemyType: string;
+  fireProtected: boolean;
+  rewardXp: number;
   outcome: "held" | "damaged" | "breached";
 };
 
@@ -17,6 +21,10 @@ export type PlayerRaid = {
   startedAt: string | null;
   resolvedAt: string | null;
   damageReport: Partial<RaidDamageReport>;
+  enemyType: string;
+  enemyCount: number;
+  totalDamage: number;
+  reward: Record<string, number>;
 };
 
 export type PlayerRaidRow = {
@@ -28,6 +36,10 @@ export type PlayerRaidRow = {
   started_at: string | null;
   resolved_at: string | null;
   damage_report?: Partial<RaidDamageReport> | null;
+  enemy_type?: string | null;
+  enemy_count?: number | null;
+  total_damage?: number | null;
+  reward?: Record<string, number> | null;
 };
 
 export function mapPlayerRaidRow(row: PlayerRaidRow): PlayerRaid {
@@ -40,5 +52,9 @@ export function mapPlayerRaidRow(row: PlayerRaidRow): PlayerRaid {
     startedAt: row.started_at,
     resolvedAt: row.resolved_at,
     damageReport: row.damage_report ?? {},
+    enemyType: row.enemy_type ?? "raiders",
+    enemyCount: row.enemy_count ?? 0,
+    totalDamage: row.total_damage ?? 0,
+    reward: row.reward ?? {},
   };
 }

@@ -1,7 +1,7 @@
 "use client";
 
-import { ChevronDown, Flame, Folder, Home, Shield, Tent } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { ChevronDown, Flame, Home, Shield, Tent } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { CampfirePanel } from "@/components/base/campfire-panel";
 import { ConstructionPanel } from "@/components/base/construction-panel";
 import { RaidPanel } from "@/components/base/raid-panel";
@@ -48,6 +48,7 @@ export function BaseOverview({ userId }: { userId: string }) {
   const { buildings, loading, error, reloadBuildings } = usePlayerBuildings(userId);
   const campfireState = usePlayerCampfire(userId);
   const repairState = usePlayerRepairs(userId);
+  const { reloadRepairs } = repairState;
   const { unlockedTechIds } = usePlayerTech(userId);
   const [selectedBuildingId, setSelectedBuildingId] = useState<BuildingId>("tent");
   const [openCategoryId, setOpenCategoryId] = useState<"camp" | "defense">("camp");
@@ -87,9 +88,9 @@ export function BaseOverview({ userId }: { userId: string }) {
     return () => window.clearInterval(interval);
   }, []);
 
-  async function handleBaseChanged() {
-    await Promise.all([reloadBuildings(), repairState.reloadRepairs()]);
-  }
+  const handleBaseChanged = useCallback(async () => {
+    await Promise.all([reloadBuildings(), reloadRepairs()]);
+  }, [reloadBuildings, reloadRepairs]);
 
   return (
     <section className="rounded-lg border border-white/10 bg-[#18232d] p-4">
@@ -103,10 +104,6 @@ export function BaseOverview({ userId }: { userId: string }) {
             {t("common.loading")}
           </span>
         ) : null}
-      </div>
-
-      <div className="mt-3">
-        <RaidPanel userId={userId} onChanged={handleBaseChanged} />
       </div>
 
       <div className="mt-3 grid gap-3">
@@ -128,7 +125,6 @@ export function BaseOverview({ userId }: { userId: string }) {
                 onClick={() => setOpenCategoryId(open ? "camp" : category.id)}
               >
                 <span className="flex items-center gap-2 font-black text-white">
-                  <Folder aria-hidden="true" size={19} className="text-[#f5b84b]" />
                   <CategoryIcon aria-hidden="true" size={18} className="text-[#aeb9b6]" />
                   {t(category.nameKey)}
                 </span>
@@ -272,6 +268,10 @@ export function BaseOverview({ userId }: { userId: string }) {
           {error ?? repairError}
         </p>
       ) : null}
+
+      <div className="mt-3">
+        <RaidPanel userId={userId} onChanged={handleBaseChanged} />
+      </div>
     </section>
   );
 }

@@ -2,7 +2,7 @@
 
 Runhold är en mobilanpassad PWA för ett GPS-drivet löparspel. Appen har inloggning, spelprofil, bas, förråd, lägereld, byggnation, reparationer, tech tree, språkval och en första expeditionsvy med GPS, scanner, kartobjekt, automatisk uppsamling och XP.
 
-Expeditionen använder mobilens position lokalt under aktiv runda. När spelaren scannar genereras spelarspecifika kartsektorer nära aktuell position. Objekten är alltså olika per spelare, skapas bara nära där spelaren faktiskt spelar och försvinner för den spelaren när de samlas.
+Expeditionen använder mobilens position lokalt under aktiv runda. När spelaren scannar genereras spelarspecifika kartsektorer nära aktuell position. Nya objekt placeras från gångvänliga OpenStreetMap-kandidater, så spawn undviker motorvägar, privata vägar och helt slumpade punkter. Objekten är olika per spelare, skapas bara nära där spelaren faktiskt spelar och försvinner för den spelaren när de samlas.
 
 ## Lokalt
 
@@ -63,7 +63,7 @@ GPS kräver normalt HTTPS på mobil. Lokal testning fungerar bäst med webbläsa
 3. Aktivera email/password-inloggning under `Authentication` -> `Sign In / Providers` -> `Email`.
 4. För nuvarande testläge: stäng av email confirmation så att nya konton kan logga in direkt. Vi kopplar riktig mailverifiering och lösenordsåterställning senare.
 5. Signup använder riktig emailadress, användarnamn och lösenord. Login använder användarnamn och lösenord.
-6. Kör SQL-migrationerna i `supabase/migrations/001_initial_schema.sql` till och med `supabase/migrations/016_chests_and_expedition_routes.sql` via Supabase SQL Editor, eller med Supabase CLI om du använder CLI lokalt. Migration 011 skapar reparationer, HP-skada och repair timers. Migration 012 skapar tech tree och låser muren bakom `basic_wall`. Migration 013 skapar expeditionssammanfattningar och XP-belöningar. Migration 014 skapar spelarspecifika kartsektorer, scanner-resultat och automatisk uppsamling. Migration 015 gör expeditionens haul serverstyrd och flyttar resurser till förrådet när expeditionen avslutas. Migration 016 lägger till chests, enklare item-loot och sparad expeditionstrail.
+6. Kör SQL-migrationerna i `supabase/migrations/001_initial_schema.sql` till och med `supabase/migrations/017_walkable_spawn_candidates.sql` via Supabase SQL Editor, eller med Supabase CLI om du använder CLI lokalt. Migration 011 skapar reparationer, HP-skada och repair timers. Migration 012 skapar tech tree och låser muren bakom `basic_wall`. Migration 013 skapar expeditionssammanfattningar och XP-belöningar. Migration 014 skapar spelarspecifika kartsektorer, scanner-resultat och automatisk uppsamling. Migration 015 gör expeditionens haul serverstyrd och flyttar resurser till förrådet när expeditionen avslutas. Migration 016 lägger till chests, enklare item-loot och sparad expeditionstrail. Migration 017 gör ny spawn beroende av gångvänliga OSM-kandidater.
 7. Om `DATABASE_URL`, Supabase CLI eller annan admin-anslutning finns i miljön kan migrationer köras direkt från terminalen. Med endast publishable/anon key måste SQL köras i Supabase SQL Editor.
 8. Kontrollera att RLS är aktivt:
 

@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { MAP_OBJECT_CONFIG } from "@/lib/game/definitions/map-objects";
 import type { Coordinate } from "@/lib/game/gps/position";
+import type { WalkableCandidate } from "@/lib/geo/walkable-candidates";
 import {
   type PlayerMapObject,
   type PlayerMapObjectRow,
@@ -30,6 +31,35 @@ function mapObjectErrorMessage(message: string): string {
   return message;
 }
 
+async function fetchWalkableCandidates({
+  center,
+  radiusM,
+}: {
+  center: Coordinate;
+  radiusM: number;
+}): Promise<WalkableCandidate[]> {
+  const params = new URLSearchParams({
+    lat: String(center.lat),
+    lng: String(center.lng),
+    radiusM: String(Math.round(radiusM)),
+  });
+  const response = await fetch(`/api/walkable-candidates?${params.toString()}`);
+
+  if (!response.ok) return [];
+
+  const data = (await response.json()) as {
+    candidates?: WalkableCandidate[];
+  };
+
+  return (data.candidates ?? []).filter(
+    (candidate) =>
+      Number.isFinite(candidate.lat) &&
+      Number.isFinite(candidate.lng) &&
+      Math.abs(candidate.lat) <= 90 &&
+      Math.abs(candidate.lng) <= 180,
+  );
+}
+
 export function useMapObjects() {
   const [objects, setObjects] = useState<PlayerMapObject[]>([]);
   const [scanning, setScanning] = useState(false);
@@ -48,11 +78,16 @@ export function useMapObjects() {
       setError(null);
 
       const supabase = getSupabaseClient();
+      const walkableCandidates = await fetchWalkableCandidates({
+        center,
+        radiusM: Math.max(scanRadiusM, MAP_OBJECT_CONFIG.spawnRadiusM),
+      });
       const { data, error: scanError } = await supabase.rpc("scan_player_map_objects", {
         input_lat: center.lat,
         input_lng: center.lng,
         input_scan_radius_m: Math.round(scanRadiusM),
         input_spawn_radius_m: MAP_OBJECT_CONFIG.spawnRadiusM,
+        input_walkable_candidates: walkableCandidates,
       });
 
       if (scanError) {

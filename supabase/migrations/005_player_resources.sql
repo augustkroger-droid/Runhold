@@ -116,7 +116,7 @@ begin
 
   insert into public.player_resources (user_id, resource_id, quantity)
   values (current_user_id, input_resource_id, next_quantity)
-  on conflict (user_id, resource_id) do update
+  on conflict on constraint player_resources_pkey do update
   set
     quantity = excluded.quantity,
     updated_at = now();

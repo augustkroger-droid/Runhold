@@ -9,8 +9,35 @@ export const dynamic = "force-dynamic";
 const overpassUrls = [
   "https://overpass-api.de/api/interpreter",
   "https://overpass.kumi.systems/api/interpreter",
-  "https://overpass.openstreetmap.ru/api/interpreter",
 ];
+
+const overpassTimeoutMs = 4_500;
+
+async function fetchOverpassData(overpassUrl: string, query: string) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), overpassTimeoutMs);
+
+  try {
+    const response = await fetch(overpassUrl, {
+      method: "POST",
+      headers: {
+        "content-type": "application/x-www-form-urlencoded;charset=UTF-8",
+        "user-agent": "Runhold MVP walkable spawn candidates",
+      },
+      body: new URLSearchParams({ data: query }),
+      cache: "no-store",
+      signal: controller.signal,
+    });
+
+    if (!response.ok) return null;
+
+    return response.json();
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
 
 function parseNumber(value: string | null): number | null {
   if (!value) return null;
@@ -34,38 +61,26 @@ export async function GET(request: Request) {
 
   const center = { lat, lng };
   const queryRadiiM = Array.from(
-    new Set([Math.min(radiusM, 2000), Math.min(radiusM, 3000), radiusM]),
+    new Set([Math.min(radiusM, 1200), Math.min(radiusM, 2000), radiusM]),
   ).filter((nextRadiusM) => nextRadiusM >= 250 && nextRadiusM <= radiusM);
 
   for (const queryRadiusM of queryRadiiM) {
     const query = buildWalkableOverpassQuery(center, queryRadiusM);
+    const results = await Promise.all(
+      overpassUrls.map((overpassUrl) => fetchOverpassData(overpassUrl, query)),
+    );
 
-    for (const overpassUrl of overpassUrls) {
-      try {
-        const response = await fetch(overpassUrl, {
-          method: "POST",
-          headers: {
-            "content-type": "application/x-www-form-urlencoded;charset=UTF-8",
-            "user-agent": "Runhold MVP walkable spawn candidates",
-          },
-          body: new URLSearchParams({ data: query }),
-          cache: "no-store",
+    for (const data of results) {
+      if (!data) continue;
+
+      const candidates = parseWalkableCandidates(data, center, queryRadiusM);
+
+      if (candidates.length > 0) {
+        return Response.json({
+          candidates,
+          radiusM: queryRadiusM,
+          source: "openstreetmap-overpass",
         });
-
-        if (!response.ok) continue;
-
-        const data = await response.json();
-        const candidates = parseWalkableCandidates(data, center, queryRadiusM);
-
-        if (candidates.length > 0) {
-          return Response.json({
-            candidates,
-            radiusM: queryRadiusM,
-            source: "openstreetmap-overpass",
-          });
-        }
-      } catch {
-        continue;
       }
     }
   }

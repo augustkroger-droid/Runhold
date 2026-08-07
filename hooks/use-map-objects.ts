@@ -17,6 +17,8 @@ type WalkableCandidateResponse = {
   radiusM: number;
 };
 
+const walkableCandidateTimeoutMs = 12_000;
+
 function mapObjectErrorMessage(message: string): string {
   if (/MAP_OBJECT_NOT_FOUND/i.test(message)) {
     return "Fyndet finns inte längre.";
@@ -44,34 +46,45 @@ async function fetchWalkableCandidates({
   center: Coordinate;
   radiusM: number;
 }): Promise<WalkableCandidateResponse> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), walkableCandidateTimeoutMs);
   const params = new URLSearchParams({
     lat: String(center.lat),
     lng: String(center.lng),
     radiusM: String(Math.round(radiusM)),
   });
-  const response = await fetch(`/api/walkable-candidates?${params.toString()}`);
 
-  if (!response.ok) {
+  try {
+    const response = await fetch(`/api/walkable-candidates?${params.toString()}`, {
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      return { candidates: [], source: "walkable-api-error", radiusM };
+    }
+
+    const data = (await response.json()) as {
+      candidates?: WalkableCandidate[];
+      source?: string;
+      radiusM?: number;
+    };
+
+    return {
+      candidates: (data.candidates ?? []).filter(
+        (candidate) =>
+          Number.isFinite(candidate.lat) &&
+          Number.isFinite(candidate.lng) &&
+          Math.abs(candidate.lat) <= 90 &&
+          Math.abs(candidate.lng) <= 180,
+      ),
+      source: data.source ?? "unknown",
+      radiusM: data.radiusM ?? radiusM,
+    };
+  } catch {
     return { candidates: [], source: "walkable-api-error", radiusM };
+  } finally {
+    clearTimeout(timeoutId);
   }
-
-  const data = (await response.json()) as {
-    candidates?: WalkableCandidate[];
-    source?: string;
-    radiusM?: number;
-  };
-
-  return {
-    candidates: (data.candidates ?? []).filter(
-      (candidate) =>
-        Number.isFinite(candidate.lat) &&
-        Number.isFinite(candidate.lng) &&
-        Math.abs(candidate.lat) <= 90 &&
-        Math.abs(candidate.lng) <= 180,
-    ),
-    source: data.source ?? "unknown",
-    radiusM: data.radiusM ?? radiusM,
-  };
 }
 
 function mergeWalkableCandidates(
@@ -115,8 +128,16 @@ export function useMapObjects() {
         radiusM: scanRadiusM,
       });
       const widerCandidates =
+        visibleCandidates.candidates.length === 0 ||
         visibleCandidates.candidates.length >= 24
-          ? { candidates: [], source: "visible-candidates-enough", radiusM: scanRadiusM }
+          ? {
+              candidates: [],
+              source:
+                visibleCandidates.candidates.length === 0
+                  ? "visible-candidates-empty"
+                  : "visible-candidates-enough",
+              radiusM: scanRadiusM,
+            }
           : await fetchWalkableCandidates({
               center,
               radiusM: MAP_OBJECT_CONFIG.spawnRadiusM,

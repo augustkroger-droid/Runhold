@@ -45,11 +45,11 @@ export function boundingBoxForRadius(center: Coordinate, radiusM: number) {
 }
 
 export function buildWalkableOverpassQuery(center: Coordinate, radiusM: number): string {
-  const box = boundingBoxForRadius(center, radiusM);
   const highways = allowedHighways.join("|");
+  const roundedRadiusM = Math.round(radiusM);
 
   return `
-[out:json][timeout:10];
+[out:json][timeout:6];
 (
   way
     ["highway"~"^(${highways})$"]
@@ -57,7 +57,7 @@ export function buildWalkableOverpassQuery(center: Coordinate, radiusM: number):
     ["foot"!~"${blockedAccessPattern}"]
     ["service"!~"${blockedServicePattern}"]
     ["area"!~"^yes$"]
-    (${box.south},${box.west},${box.north},${box.east});
+    (around:${roundedRadiusM},${center.lat},${center.lng});
 );
 out body geom;
 `.trim();

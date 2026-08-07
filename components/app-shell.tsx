@@ -124,7 +124,7 @@ export function AppShell() {
         onSignOut={handleSignOut}
         onLanguageChange={updateLanguage}
         onProfileChanged={async () => {
-          await reloadProfile();
+          await reloadProfile({ quiet: true });
         }}
       />
       <ServiceWorkerRegister />

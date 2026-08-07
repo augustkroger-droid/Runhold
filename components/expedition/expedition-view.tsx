@@ -11,6 +11,7 @@ import { MapLoader } from "@/components/map/map-loader";
 import { useI18n } from "@/components/i18n-provider";
 import type { Coordinate } from "@/lib/game/gps/position";
 import type { ExpeditionRoutePoint } from "@/lib/game/state/player-expeditions";
+import type { PlayerExpedition } from "@/lib/game/state/player-expeditions";
 import { haversineDistanceMeters } from "@/lib/geo/haversine";
 import {
   EXPEDITION_CONFIG,
@@ -146,6 +147,8 @@ export function ExpeditionView({
   const [scanActive, setScanActive] = useState(false);
   const [mapCenter, setMapCenter] = useState<Coordinate>(() => loadStoredMapCenter());
   const [showResultSummary, setShowResultSummary] = useState(false);
+  const [selectedHistoryExpedition, setSelectedHistoryExpedition] =
+    useState<PlayerExpedition | null>(null);
   const [lastResult, setLastResult] = useState<{
     distanceM: number;
     durationSeconds: number;
@@ -709,6 +712,123 @@ export function ExpeditionView({
 
   return (
     <section className="grid gap-4">
+      {selectedHistoryExpedition ? (
+        <div className="fixed inset-0 z-[1400] overflow-y-auto bg-black/62 p-3 backdrop-blur-sm">
+          <section className="mx-auto my-3 grid w-full max-w-3xl gap-3 rounded-lg border border-white/10 bg-[#101820] p-4 shadow-2xl">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-[#43d9ad]">
+                  {formatExpeditionDate(selectedHistoryExpedition.endedAt, language)}
+                </p>
+                <h2 className="mt-1 text-2xl font-black text-white">
+                  {formatDistance(selectedHistoryExpedition.distanceM)}
+                </h2>
+              </div>
+              <button
+                type="button"
+                className="rounded-md bg-[#22303b] px-3 py-2 text-sm font-black text-white"
+                onClick={() => setSelectedHistoryExpedition(null)}
+              >
+                {t("expedition.closeDetails")}
+              </button>
+            </div>
+
+            {selectedHistoryExpedition.routePoints.length > 0 ? (
+              <div className="h-[42dvh] min-h-[300px] overflow-hidden rounded-lg border border-white/10 bg-[#18232d]">
+                <MapLoader
+                  start={selectedHistoryExpedition.routePoints[0]}
+                  destination={null}
+                  current={
+                    selectedHistoryExpedition.routePoints[
+                      selectedHistoryExpedition.routePoints.length - 1
+                    ]
+                  }
+                  canSelectDestination={false}
+                  showStartRadius={false}
+                  scanRadiusM={null}
+                  mapObjects={[]}
+                  routePoints={selectedHistoryExpedition.routePoints}
+                  centerLabel={t("expedition.centerMap")}
+                  onDestinationSelect={() => undefined}
+                />
+              </div>
+            ) : null}
+
+            <dl className="grid grid-cols-4 gap-2 text-sm">
+              <div className="rounded-md bg-[#18232d] p-3">
+                <dt className="text-[#a9cfc3]">{t("expedition.distance")}</dt>
+                <dd className="mt-1 font-black text-white">
+                  {formatDistance(selectedHistoryExpedition.distanceM)}
+                </dd>
+              </div>
+              <div className="rounded-md bg-[#18232d] p-3">
+                <dt className="text-[#a9cfc3]">{t("expedition.time")}</dt>
+                <dd className="mt-1 font-black text-white">
+                  {formatElapsed(selectedHistoryExpedition.durationSeconds * 1000)}
+                </dd>
+              </div>
+              <div className="rounded-md bg-[#18232d] p-3">
+                <dt className="text-[#a9cfc3]">{t("expedition.pace")}</dt>
+                <dd className="mt-1 font-black text-white">
+                  {formatPace(
+                    selectedHistoryExpedition.distanceM,
+                    selectedHistoryExpedition.durationSeconds,
+                  )}
+                </dd>
+              </div>
+              <div className="rounded-md bg-[#2b2414] p-3">
+                <dt className="text-[#f5b84b]">XP</dt>
+                <dd className="mt-1 font-black text-white">
+                  +{selectedHistoryExpedition.xpEarned}
+                </dd>
+              </div>
+            </dl>
+
+            <div className="grid gap-3">
+              <div className="rounded-md bg-[#18232d] p-3">
+                <h3 className="font-black text-white">{t("expedition.haul")}</h3>
+                {Object.keys(selectedHistoryExpedition.resourceHaul).length > 0 ? (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {Object.entries(selectedHistoryExpedition.resourceHaul).map(
+                      ([resourceId, quantity]) => (
+                        <span
+                          key={resourceId}
+                          className="rounded-full bg-[#14342d] px-3 py-1 text-sm font-black text-[#d7fff0]"
+                        >
+                          +{quantity} {resourceName(language, resourceId)}
+                        </span>
+                      ),
+                    )}
+                  </div>
+                ) : (
+                  <p className="mt-2 text-sm text-[#a9cfc3]">
+                    {t("expedition.noHaul")}
+                  </p>
+                )}
+              </div>
+
+              {Object.keys(selectedHistoryExpedition.itemHaul).length > 0 ? (
+                <div className="rounded-md bg-[#18232d] p-3">
+                  <h3 className="font-black text-white">{t("expedition.items")}</h3>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {Object.entries(selectedHistoryExpedition.itemHaul).map(
+                      ([itemId, quantity]) => (
+                        <span
+                          key={itemId}
+                          className="rounded-full bg-[#2b2414] px-3 py-1 text-sm font-black text-[#ffe5ad]"
+                        >
+                          +{quantity} {itemName(language, itemId)}
+                        </span>
+                      ),
+                    )}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </section>
+        </div>
+      ) : null}
+
       {showResultSummary && lastResult ? (
         <div className="fixed inset-0 z-[1400] grid place-items-end bg-black/58 p-3 backdrop-blur-sm">
           <section className="w-full rounded-lg border border-[#43d9ad]/30 bg-[#101820] p-4 shadow-2xl">
@@ -977,9 +1097,11 @@ export function ExpeditionView({
         {history.length > 0 ? (
           <div className="mt-3 grid gap-3">
             {history.map((expedition) => (
-              <article
+              <button
+                type="button"
                 key={expedition.id}
-                className="rounded-md border border-white/10 bg-[#101820] p-3"
+                className="rounded-md border border-white/10 bg-[#101820] p-3 text-left"
+                onClick={() => setSelectedHistoryExpedition(expedition)}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -1040,7 +1162,7 @@ export function ExpeditionView({
                     ))}
                   </div>
                 ) : null}
-              </article>
+              </button>
             ))}
           </div>
         ) : (

@@ -100,6 +100,7 @@ function MissionAppContent({
       {activeTab === "profile" && !expeditionActive ? (
         <ProfileOverview
           profile={gameProfile}
+          userId={userId}
           username={username}
           onSignOut={onSignOut}
           onLanguageChange={onLanguageChange}

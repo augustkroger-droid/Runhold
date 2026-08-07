@@ -16,6 +16,7 @@ import { haversineDistanceMeters } from "@/lib/geo/haversine";
 import {
   EXPEDITION_CONFIG,
   calculateExpeditionXp,
+  calculateRouteDistanceMeters,
 } from "@/lib/game/systems/expedition";
 import { MAP_OBJECT_CONFIG } from "@/lib/game/definitions/map-objects";
 import { itemName, resourceName } from "@/lib/i18n";
@@ -45,6 +46,22 @@ function formatPace(distanceM: number, durationSeconds: number): string {
   const minutes = Math.floor(totalSecondsPerKm / 60);
   const seconds = totalSecondsPerKm % 60;
   return `${minutes}:${seconds.toString().padStart(2, "0")}/km`;
+}
+
+function formatAverageSpeed(distanceM: number, durationSeconds: number): string {
+  if (distanceM < 1 || durationSeconds <= 0) return "--";
+
+  return `${((distanceM / 1000) / (durationSeconds / 3600)).toFixed(1)} km/h`;
+}
+
+function countTotalHaul(
+  resources: Record<string, number>,
+  items: Record<string, number>,
+): number {
+  return [...Object.values(resources), ...Object.values(items)].reduce(
+    (total, quantity) => total + quantity,
+    0,
+  );
 }
 
 function movementThresholdM(accuracyM: number, baseThresholdM: number): number {
@@ -229,8 +246,11 @@ export function ExpeditionView({
     }
 
     const nextPoints = [...routePointsRef.current, point].slice(-5000);
+    const nextDistanceM = calculateRouteDistanceMeters(nextPoints);
     routePointsRef.current = nextPoints;
+    distanceRef.current = nextDistanceM;
     setRoutePoints(nextPoints);
+    setDistanceM(nextDistanceM);
   }, []);
 
   const handleReading = useCallback(
@@ -311,21 +331,7 @@ export function ExpeditionView({
 
       if (reading.accuracyM > EXPEDITION_CONFIG.maxAccurateReadingM) return;
 
-      const previous = lastReadingRef.current;
       lastReadingRef.current = reading.position;
-
-      if (!previous || startedAtRef.current === null) return;
-
-      const delta = haversineDistanceMeters(previous, reading.position);
-      if (
-        delta < movementThresholdM(reading.accuracyM, EXPEDITION_CONFIG.minMovementM) ||
-        delta > 300
-      ) {
-        return;
-      }
-
-      distanceRef.current += delta;
-      setDistanceM(distanceRef.current);
     },
     [appendRoutePoint, collectObject, language, t],
   );
@@ -536,9 +542,11 @@ export function ExpeditionView({
     const endedAt = Date.now();
     const started = startedAtRef.current ?? endedAt;
     const durationSeconds = Math.max(0, Math.round((endedAt - started) / 1000));
-    const finalDistanceM = distanceRef.current;
+    const finalDistanceM = calculateRouteDistanceMeters(routePointsRef.current);
     const expeditionId = expeditionIdRef.current;
 
+    distanceRef.current = finalDistanceM;
+    setDistanceM(finalDistanceM);
     startedAtRef.current = null;
     expeditionIdRef.current = null;
     setStartedAt(null);
@@ -754,7 +762,7 @@ export function ExpeditionView({
               </div>
             ) : null}
 
-            <dl className="grid grid-cols-4 gap-2 text-sm">
+            <dl className="grid grid-cols-2 gap-2 text-sm">
               <div className="rounded-md bg-[#18232d] p-3">
                 <dt className="text-[#a9cfc3]">{t("expedition.distance")}</dt>
                 <dd className="mt-1 font-black text-white">
@@ -776,10 +784,46 @@ export function ExpeditionView({
                   )}
                 </dd>
               </div>
+              <div className="rounded-md bg-[#18232d] p-3">
+                <dt className="text-[#a9cfc3]">{t("expedition.avgSpeed")}</dt>
+                <dd className="mt-1 font-black text-white">
+                  {formatAverageSpeed(
+                    selectedHistoryExpedition.distanceM,
+                    selectedHistoryExpedition.durationSeconds,
+                  )}
+                </dd>
+              </div>
               <div className="rounded-md bg-[#2b2414] p-3">
                 <dt className="text-[#f5b84b]">XP</dt>
                 <dd className="mt-1 font-black text-white">
                   +{selectedHistoryExpedition.xpEarned}
+                </dd>
+              </div>
+              <div className="rounded-md bg-[#18232d] p-3">
+                <dt className="text-[#a9cfc3]">{t("expedition.collectedTotal")}</dt>
+                <dd className="mt-1 font-black text-white">
+                  {countTotalHaul(
+                    selectedHistoryExpedition.resourceHaul,
+                    selectedHistoryExpedition.itemHaul,
+                  )}
+                </dd>
+              </div>
+              <div className="rounded-md bg-[#18232d] p-3">
+                <dt className="text-[#a9cfc3]">{t("expedition.routePoints")}</dt>
+                <dd className="mt-1 font-black text-white">
+                  {selectedHistoryExpedition.routePoints.length}
+                </dd>
+              </div>
+              <div className="rounded-md bg-[#18232d] p-3">
+                <dt className="text-[#a9cfc3]">{t("expedition.startedAt")}</dt>
+                <dd className="mt-1 font-black text-white">
+                  {formatExpeditionDate(selectedHistoryExpedition.startedAt, language)}
+                </dd>
+              </div>
+              <div className="rounded-md bg-[#18232d] p-3">
+                <dt className="text-[#a9cfc3]">{t("expedition.endedAt")}</dt>
+                <dd className="mt-1 font-black text-white">
+                  {formatExpeditionDate(selectedHistoryExpedition.endedAt, language)}
                 </dd>
               </div>
             </dl>
@@ -839,7 +883,7 @@ export function ExpeditionView({
               {t("expedition.result")}
             </h2>
 
-            <dl className="mt-4 grid grid-cols-4 gap-2 text-sm">
+            <dl className="mt-4 grid grid-cols-2 gap-2 text-sm">
               <div className="rounded-md bg-[#18232d] p-3">
                 <dt className="text-[#a9cfc3]">{t("expedition.distance")}</dt>
                 <dd className="mt-1 font-black text-white">
@@ -858,9 +902,27 @@ export function ExpeditionView({
                   {formatPace(lastResult.distanceM, lastResult.durationSeconds)}
                 </dd>
               </div>
+              <div className="rounded-md bg-[#18232d] p-3">
+                <dt className="text-[#a9cfc3]">{t("expedition.avgSpeed")}</dt>
+                <dd className="mt-1 font-black text-white">
+                  {formatAverageSpeed(lastResult.distanceM, lastResult.durationSeconds)}
+                </dd>
+              </div>
               <div className="rounded-md bg-[#2b2414] p-3">
                 <dt className="text-[#f5b84b]">XP</dt>
                 <dd className="mt-1 font-black text-white">+{lastResult.xpEarned}</dd>
+              </div>
+              <div className="rounded-md bg-[#18232d] p-3">
+                <dt className="text-[#a9cfc3]">{t("expedition.collectedTotal")}</dt>
+                <dd className="mt-1 font-black text-white">
+                  {countTotalHaul(lastResult.resourceHaul, lastResult.itemHaul)}
+                </dd>
+              </div>
+              <div className="rounded-md bg-[#18232d] p-3">
+                <dt className="text-[#a9cfc3]">{t("expedition.routePoints")}</dt>
+                <dd className="mt-1 font-black text-white">
+                  {lastResult.routePoints.length}
+                </dd>
               </div>
             </dl>
 
@@ -1017,7 +1079,7 @@ export function ExpeditionView({
       {lastResult ? (
         <section className="rounded-lg border border-[#43d9ad]/30 bg-[#14342d] p-4">
           <h2 className="text-lg font-black text-white">{t("expedition.result")}</h2>
-          <dl className="mt-3 grid grid-cols-4 gap-2 text-sm">
+          <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
             <div className="rounded-md bg-[#0f211c] p-3">
               <dt className="text-[#a9cfc3]">{t("expedition.distance")}</dt>
               <dd className="mt-1 font-black text-white">
@@ -1037,8 +1099,20 @@ export function ExpeditionView({
               </dd>
             </div>
             <div className="rounded-md bg-[#0f211c] p-3">
+              <dt className="text-[#a9cfc3]">{t("expedition.avgSpeed")}</dt>
+              <dd className="mt-1 font-black text-white">
+                {formatAverageSpeed(lastResult.distanceM, lastResult.durationSeconds)}
+              </dd>
+            </div>
+            <div className="rounded-md bg-[#0f211c] p-3">
               <dt className="text-[#a9cfc3]">XP</dt>
               <dd className="mt-1 font-black text-white">+{lastResult.xpEarned}</dd>
+            </div>
+            <div className="rounded-md bg-[#0f211c] p-3">
+              <dt className="text-[#a9cfc3]">{t("expedition.routePoints")}</dt>
+              <dd className="mt-1 font-black text-white">
+                {lastResult.routePoints.length}
+              </dd>
             </div>
           </dl>
           <div className="mt-3 rounded-md bg-[#0f211c] p-3">
@@ -1118,7 +1192,7 @@ export function ExpeditionView({
                   </div>
                 </div>
 
-                <dl className="mt-3 grid grid-cols-3 gap-2 text-sm">
+                <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
                   <div className="rounded-md bg-[#18232d] p-2">
                     <dt className="text-[#a9cfc3]">{t("expedition.time")}</dt>
                     <dd className="font-black text-white">
@@ -1129,6 +1203,21 @@ export function ExpeditionView({
                     <dt className="text-[#a9cfc3]">{t("expedition.pace")}</dt>
                     <dd className="font-black text-white">
                       {formatPace(expedition.distanceM, expedition.durationSeconds)}
+                    </dd>
+                  </div>
+                  <div className="rounded-md bg-[#18232d] p-2">
+                    <dt className="text-[#a9cfc3]">{t("expedition.avgSpeed")}</dt>
+                    <dd className="font-black text-white">
+                      {formatAverageSpeed(
+                        expedition.distanceM,
+                        expedition.durationSeconds,
+                      )}
+                    </dd>
+                  </div>
+                  <div className="rounded-md bg-[#18232d] p-2">
+                    <dt className="text-[#a9cfc3]">{t("expedition.collectedTotal")}</dt>
+                    <dd className="font-black text-white">
+                      {countTotalHaul(expedition.resourceHaul, expedition.itemHaul)}
                     </dd>
                   </div>
                   <div className="rounded-md bg-[#18232d] p-2">

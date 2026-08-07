@@ -1,12 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { calculateExpeditionXp } from "@/lib/game/systems/expedition";
+import {
+  calculateExpeditionXp,
+  calculateRouteDistanceMeters,
+} from "@/lib/game/systems/expedition";
 
 describe("expedition system", () => {
-  it("does not reward tiny expeditions", () => {
-    expect(calculateExpeditionXp({ distanceM: 80, durationSeconds: 60 })).toBe(0);
+  it("rewards one xp per 50 traveled meters", () => {
+    expect(calculateExpeditionXp({ distanceM: 49, durationSeconds: 60 })).toBe(0);
+    expect(calculateExpeditionXp({ distanceM: 50, durationSeconds: 60 })).toBe(1);
+    expect(calculateExpeditionXp({ distanceM: 1000, durationSeconds: 360 })).toBe(20);
   });
 
-  it("rewards distance with a small pace bonus", () => {
-    expect(calculateExpeditionXp({ distanceM: 1000, durationSeconds: 360 })).toBe(24);
+  it("sums traveled route distance instead of start-to-finish distance", () => {
+    const distanceM = calculateRouteDistanceMeters([
+      { lat: 57.7815, lng: 14.1562 },
+      { lat: 57.782, lng: 14.1562 },
+      { lat: 57.782, lng: 14.157 },
+    ]);
+
+    expect(distanceM).toBeGreaterThan(95);
+    expect(distanceM).toBeLessThan(115);
   });
 });

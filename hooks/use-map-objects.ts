@@ -282,13 +282,23 @@ export function useMapObjects() {
         throw new Error(message);
       }
 
-      const { data, error: scanError } = await supabase.rpc("scan_player_map_objects", {
+      const scanArgs = {
         input_lat: center.lat,
         input_lng: center.lng,
         input_scan_radius_m: Math.round(scanRadiusM),
         input_spawn_radius_m: MAP_OBJECT_CONFIG.spawnRadiusM,
         input_walkable_candidates: walkableCandidates,
-      });
+      };
+      let { data, error: scanError } = await supabase.rpc(
+        "scan_visible_walkable_map_objects",
+        scanArgs,
+      );
+
+      if (scanError && scanError.code === "PGRST202") {
+        const fallbackResult = await supabase.rpc("scan_player_map_objects", scanArgs);
+        data = fallbackResult.data;
+        scanError = fallbackResult.error;
+      }
 
       if (scanError) {
         const message = mapObjectErrorMessage(scanError.message);

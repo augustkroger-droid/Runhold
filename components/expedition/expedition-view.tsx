@@ -143,7 +143,6 @@ export function ExpeditionView({
   } = usePlayerExpeditions(userId);
   const {
     objects: mapObjects,
-    walkablePaths,
     scanning,
     error: mapObjectError,
     scanObjects,
@@ -628,7 +627,6 @@ export function ExpeditionView({
               showStartRadius={false}
               scanRadiusM={scanActive ? scannerRadiusM : null}
               mapObjects={scanActive ? mapObjects : []}
-              walkablePaths={scanActive ? walkablePaths : []}
               routePoints={routePoints}
               centerLabel={t("expedition.centerMap")}
               centerControlClassName="bottom-44 right-4"
@@ -758,7 +756,6 @@ export function ExpeditionView({
                   showStartRadius={false}
                   scanRadiusM={null}
                   mapObjects={[]}
-                  walkablePaths={[]}
                   routePoints={selectedHistoryExpedition.routePoints}
                   centerLabel={t("expedition.centerMap")}
                   onDestinationSelect={() => undefined}
@@ -986,7 +983,6 @@ export function ExpeditionView({
           showStartRadius={false}
           scanRadiusM={scanActive ? scannerRadiusM : null}
           mapObjects={scanActive ? mapObjects : []}
-          walkablePaths={scanActive ? walkablePaths : []}
           routePoints={lastResult?.routePoints ?? routePoints}
           centerLabel={t("expedition.centerMap")}
           onViewChange={saveViewedMapCenter}

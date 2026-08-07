@@ -2,11 +2,14 @@
 
 import { Minus, Package, Plus } from "lucide-react";
 import { useState } from "react";
+import { useI18n } from "@/components/i18n-provider";
 import { RESOURCE_DEFINITIONS } from "@/lib/game/definitions/resources";
 import type { ResourceId } from "@/lib/game/definitions/resources";
 import { usePlayerResources } from "@/hooks/use-player-resources";
+import { resourceName } from "@/lib/i18n";
 
 export function ResourceInventory({ userId }: { userId: string }) {
+  const { language, t } = useI18n();
   const { balances, loading, error, busyResourceId, adjustResource } =
     usePlayerResources(userId);
   const [localError, setLocalError] = useState<string | null>(null);
@@ -20,7 +23,7 @@ export function ResourceInventory({ userId }: { userId: string }) {
       setLocalError(
         adjustError instanceof Error
           ? adjustError.message
-          : "Kunde inte ändra resursen just nu.",
+          : t("inventory.error"),
       );
     }
   }
@@ -30,11 +33,11 @@ export function ResourceInventory({ userId }: { userId: string }) {
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 font-black text-white">
           <Package aria-hidden="true" size={19} />
-          Förråd
+          {t("inventory.title")}
         </div>
         {loading ? (
           <span className="text-xs font-bold uppercase tracking-[0.12em] text-[#aeb9b6]">
-            Laddar
+            {t("common.loading")}
           </span>
         ) : null}
       </div>
@@ -53,7 +56,9 @@ export function ResourceInventory({ userId }: { userId: string }) {
                   <span aria-hidden="true" className="text-lg">
                     {resource.icon}
                   </span>
-                  <h3 className="font-black text-white">{resource.name}</h3>
+                  <h3 className="font-black text-white">
+                    {resourceName(language, resource.id)}
+                  </h3>
                 </div>
                 <p className="mt-1 text-2xl font-black text-[#43d9ad]">
                   {balances[resource.id]}
@@ -64,7 +69,9 @@ export function ResourceInventory({ userId }: { userId: string }) {
                 <button
                   type="button"
                   className="grid size-10 place-items-center rounded-md bg-[#22303b] text-white disabled:opacity-50"
-                  aria-label={`Ta bort 5 ${resource.name}`}
+                  aria-label={t("inventory.remove", {
+                    resource: resourceName(language, resource.id),
+                  })}
                   disabled={loading || busy}
                   onClick={() => handleAdjust(resource.id, -5)}
                 >
@@ -73,7 +80,9 @@ export function ResourceInventory({ userId }: { userId: string }) {
                 <button
                   type="button"
                   className="grid size-10 place-items-center rounded-md bg-[#315f36] text-white disabled:opacity-50"
-                  aria-label={`Lägg till 10 ${resource.name}`}
+                  aria-label={t("inventory.add", {
+                    resource: resourceName(language, resource.id),
+                  })}
                   disabled={loading || busy}
                   onClick={() => handleAdjust(resource.id, 10)}
                 >

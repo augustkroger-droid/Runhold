@@ -5,25 +5,30 @@ import { useState } from "react";
 import { AppBottomNav, type AppTabId } from "@/components/app-bottom-nav";
 import { BaseOverview } from "@/components/base/base-overview";
 import { ExpeditionView } from "@/components/expedition/expedition-view";
+import { I18nProvider, useI18n } from "@/components/i18n-provider";
 import { ResourceInventory } from "@/components/inventory/resource-inventory";
 import { ProfileOverview } from "@/components/profile/profile-overview";
 import { TechOverview } from "@/components/tech/tech-overview";
 import type { PlayerGameProfile } from "@/lib/game/state/player-profile";
+import type { Language } from "@/lib/i18n";
 
-export function MissionApp({
+function MissionAppContent({
   gameProfile,
   userId,
   username,
   onSignOut,
+  onLanguageChange,
   onProfileChanged,
 }: {
   gameProfile: PlayerGameProfile;
   userId: string;
   username: string;
   onSignOut: () => void;
+  onLanguageChange: (language: Language) => Promise<PlayerGameProfile>;
   onProfileChanged: () => Promise<void>;
 }) {
   const [activeTab, setActiveTab] = useState<AppTabId>("base");
+  const { t } = useI18n();
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col gap-4 px-4 pb-24 pt-5">
@@ -48,7 +53,7 @@ export function MissionApp({
           <button
             type="button"
             className="grid size-11 place-items-center rounded-full bg-[#22303b] text-[#c9d4d0]"
-            aria-label="Logga ut"
+            aria-label={t("app.signOut")}
             onClick={onSignOut}
           >
             <LogOut aria-hidden="true" size={20} />
@@ -73,10 +78,40 @@ export function MissionApp({
           profile={gameProfile}
           username={username}
           onSignOut={onSignOut}
+          onLanguageChange={onLanguageChange}
         />
       ) : null}
 
       <AppBottomNav activeTab={activeTab} onTabChange={setActiveTab} />
     </main>
+  );
+}
+
+export function MissionApp({
+  gameProfile,
+  userId,
+  username,
+  onSignOut,
+  onLanguageChange,
+  onProfileChanged,
+}: {
+  gameProfile: PlayerGameProfile;
+  userId: string;
+  username: string;
+  onSignOut: () => void;
+  onLanguageChange: (language: Language) => Promise<PlayerGameProfile>;
+  onProfileChanged: () => Promise<void>;
+}) {
+  return (
+    <I18nProvider language={gameProfile.language}>
+      <MissionAppContent
+        gameProfile={gameProfile}
+        userId={userId}
+        username={username}
+        onSignOut={onSignOut}
+        onLanguageChange={onLanguageChange}
+        onProfileChanged={onProfileChanged}
+      />
+    </I18nProvider>
   );
 }

@@ -1,17 +1,21 @@
 "use client";
 
 import { LocateFixed, Radar, Square, Footprints, Play } from "lucide-react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type GeoReading, useGeolocationWatch } from "@/hooks/use-geolocation-watch";
+import { useMapObjects } from "@/hooks/use-map-objects";
 import { usePlayerExpeditions } from "@/hooks/use-player-expeditions";
 import { usePlayerTech } from "@/hooks/use-player-tech";
 import { MapLoader } from "@/components/map/map-loader";
+import { useI18n } from "@/components/i18n-provider";
 import type { Coordinate } from "@/lib/game/gps/position";
 import { haversineDistanceMeters } from "@/lib/geo/haversine";
 import {
   EXPEDITION_CONFIG,
   calculateExpeditionXp,
 } from "@/lib/game/systems/expedition";
+import { MAP_OBJECT_CONFIG } from "@/lib/game/definitions/map-objects";
+import { resourceName } from "@/lib/i18n";
 
 function formatDistance(distanceM: number): string {
   if (distanceM >= 1000) {
@@ -28,16 +32,16 @@ function formatElapsed(milliseconds: number): string {
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
-function positionErrorMessage(error: GeolocationPositionError): string {
+function positionErrorKey(error: GeolocationPositionError) {
   if (error.code === error.PERMISSION_DENIED) {
-    return "GPS-behörighet nekades.";
+    return "expedition.permissionDenied" as const;
   }
 
   if (error.code === error.TIMEOUT) {
-    return "Det tog för lång tid att hitta positionen.";
+    return "expedition.timeout" as const;
   }
 
-  return "Kunde inte hitta positionen.";
+  return "expedition.positionError" as const;
 }
 
 export function ExpeditionView({
@@ -48,7 +52,15 @@ export function ExpeditionView({
   onProfileChanged: () => Promise<void>;
 }) {
   const { startWatch, stopWatch } = useGeolocationWatch();
+  const { language, t } = useI18n();
   const { completeExpedition, saving, error: saveError } = usePlayerExpeditions(userId);
+  const {
+    objects: mapObjects,
+    scanning,
+    error: mapObjectError,
+    scanObjects,
+    collectObject,
+  } = useMapObjects();
   const { unlockedTechIds } = usePlayerTech(userId);
   const [status, setStatus] = useState<"idle" | "locating" | "ready" | "active" | "done">(
     "idle",
@@ -71,6 +83,8 @@ export function ExpeditionView({
   const distanceRef = useRef(0);
   const startedAtRef = useRef<number | null>(null);
   const elapsedIntervalRef = useRef<number | null>(null);
+  const mapObjectsRef = useRef(mapObjects);
+  const collectingObjectIdsRef = useRef<Set<string>>(new Set());
 
   const scannerRadiusM = unlockedTechIds.has("improved_scanner")
     ? 2500
@@ -85,23 +99,57 @@ export function ExpeditionView({
     [distanceM, durationMs],
   );
 
-  const handleReading = useCallback((reading: GeoReading) => {
-    setCurrent(reading.position);
-    setAccuracyM(reading.accuracyM);
+  useEffect(() => {
+    mapObjectsRef.current = mapObjects;
+  }, [mapObjects]);
 
-    if (reading.accuracyM > EXPEDITION_CONFIG.maxAccurateReadingM) return;
+  const handleReading = useCallback(
+    (reading: GeoReading) => {
+      setCurrent(reading.position);
+      setAccuracyM(reading.accuracyM);
 
-    const previous = lastReadingRef.current;
-    lastReadingRef.current = reading.position;
+      if (startedAtRef.current !== null) {
+        for (const object of mapObjectsRef.current) {
+          if (collectingObjectIdsRef.current.has(object.id)) continue;
 
-    if (!previous || startedAtRef.current === null) return;
+          const objectDistanceM = haversineDistanceMeters(
+            reading.position,
+            object.position,
+          );
 
-    const delta = haversineDistanceMeters(previous, reading.position);
-    if (delta <= 0 || delta > 300) return;
+          if (objectDistanceM <= MAP_OBJECT_CONFIG.collectRadiusM) {
+            collectingObjectIdsRef.current.add(object.id);
+            void collectObject({ objectId: object.id, position: reading.position })
+              .then(() => {
+                setMessage(`+${object.quantity} ${resourceName(language, object.resourceId)}`);
+              })
+              .catch((error) => {
+                setMessage(
+                  error instanceof Error ? error.message : t("expedition.pickupError"),
+                );
+              })
+              .finally(() => {
+                collectingObjectIdsRef.current.delete(object.id);
+              });
+          }
+        }
+      }
 
-    distanceRef.current += delta;
-    setDistanceM(distanceRef.current);
-  }, []);
+      if (reading.accuracyM > EXPEDITION_CONFIG.maxAccurateReadingM) return;
+
+      const previous = lastReadingRef.current;
+      lastReadingRef.current = reading.position;
+
+      if (!previous || startedAtRef.current === null) return;
+
+      const delta = haversineDistanceMeters(previous, reading.position);
+      if (delta <= 0 || delta > 300) return;
+
+      distanceRef.current += delta;
+      setDistanceM(distanceRef.current);
+    },
+    [collectObject, language, t],
+  );
 
   function clearElapsedTimer() {
     if (elapsedIntervalRef.current !== null) {
@@ -125,25 +173,38 @@ export function ExpeditionView({
         setAccuracyM(position.coords.accuracy);
         lastReadingRef.current = point;
         setStatus("ready");
-        setMessage("Position hittad. Du kan scanna området eller starta expeditionen.");
+        setMessage(t("expedition.positionReady"));
       },
       (error) => {
         setStatus("idle");
-        setMessage(positionErrorMessage(error));
+        setMessage(t(positionErrorKey(error)));
       },
       { enableHighAccuracy: true, maximumAge: 0, timeout: 15_000 },
     );
-  }, []);
+  }, [t]);
 
-  const scan = useCallback(() => {
+  const scan = useCallback(async () => {
     if (!current) {
-      setMessage("Hämta position först.");
+      setMessage(t("expedition.needPosition"));
       return;
     }
 
-    setScanActive(true);
-    setMessage(`Scanner aktiv: ${formatDistance(scannerRadiusM)} radie.`);
-  }, [current, scannerRadiusM]);
+    try {
+      const scannedObjects = await scanObjects({
+        center: current,
+        scanRadiusM: scannerRadiusM,
+      });
+      setScanActive(true);
+      setMessage(
+        t("expedition.scanActive", {
+          radius: formatDistance(scannerRadiusM),
+          count: scannedObjects.length,
+        }),
+      );
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : t("expedition.scanError"));
+    }
+  }, [current, scanObjects, scannerRadiusM, t]);
 
   const startExpedition = useCallback(() => {
     if (!current) {
@@ -165,13 +226,13 @@ export function ExpeditionView({
     elapsedIntervalRef.current = window.setInterval(() => {
       setElapsedNow(Date.now());
     }, 1000);
-    setMessage("Expeditionen är igång.");
+    setMessage(t("expedition.started"));
 
     startWatch({
       onReading: handleReading,
       onError: setMessage,
     });
-  }, [current, handleReading, locate, startWatch]);
+  }, [current, handleReading, locate, startWatch, t]);
 
   const stopExpedition = useCallback(async () => {
     stopWatch();
@@ -195,12 +256,12 @@ export function ExpeditionView({
         durationSeconds: result.expedition.durationSeconds,
         xpEarned: result.expedition.xpEarned,
       });
-      setMessage(`Expedition avslutad. +${result.expedition.xpEarned} XP.`);
+      setMessage(t("expedition.done", { xp: result.expedition.xpEarned }));
       await onProfileChanged();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Expeditionen kunde inte sparas.");
+      setMessage(error instanceof Error ? error.message : t("expedition.saveError"));
     }
-  }, [completeExpedition, onProfileChanged, stopWatch]);
+  }, [completeExpedition, onProfileChanged, stopWatch, t]);
 
   const reset = useCallback(() => {
     stopWatch();
@@ -231,13 +292,14 @@ export function ExpeditionView({
             canSelectDestination={false}
             showStartRadius={false}
             scanRadiusM={scanActive ? scannerRadiusM : null}
+            mapObjects={scanActive ? mapObjects : []}
             onDestinationSelect={() => undefined}
           />
         ) : (
           <div className="grid h-full place-items-center p-6 text-center text-[#c9d4d0]">
             <div>
               <LocateFixed aria-hidden="true" className="mx-auto text-[#43d9ad]" size={34} />
-              <p className="mt-3 font-bold">Hämta position för att öppna kartan.</p>
+              <p className="mt-3 font-bold">{t("expedition.findPosition")}</p>
             </div>
           </div>
         )}
@@ -246,13 +308,13 @@ export function ExpeditionView({
       <div className="grid grid-cols-3 gap-3">
         <div className="rounded-lg border border-white/10 bg-[#18232d] p-3">
           <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#aeb9b6]">
-            Distans
+            {t("expedition.distance")}
           </p>
           <p className="mt-1 text-xl font-black text-white">{formatDistance(distanceM)}</p>
         </div>
         <div className="rounded-lg border border-white/10 bg-[#18232d] p-3">
           <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#aeb9b6]">
-            Tid
+            {t("expedition.time")}
           </p>
           <p className="mt-1 text-xl font-black text-white">{formatElapsed(durationMs)}</p>
         </div>
@@ -268,7 +330,7 @@ export function ExpeditionView({
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 font-black text-white">
             <Footprints aria-hidden="true" size={19} />
-            Expedition
+            {t("expedition.title")}
           </div>
           <span className="text-sm font-bold text-[#aeb9b6]">
             GPS {accuracyM ? `${Math.round(accuracyM)} m` : "--"}
@@ -284,7 +346,7 @@ export function ExpeditionView({
               onClick={locate}
             >
               <LocateFixed aria-hidden="true" size={19} />
-              {status === "locating" ? "Hämtar position..." : "Hämta position"}
+              {status === "locating" ? t("expedition.locating") : t("expedition.locate")}
             </button>
           ) : null}
 
@@ -294,9 +356,10 @@ export function ExpeditionView({
                 type="button"
                 className="flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-[#43d9ad]/50 bg-[#16342d] px-4 font-black text-[#d7fff0]"
                 onClick={scan}
+                disabled={scanning}
               >
                 <Radar aria-hidden="true" size={19} />
-                Scanna område
+                {scanning ? t("expedition.scanning") : t("expedition.scan")}
               </button>
               <button
                 type="button"
@@ -304,7 +367,7 @@ export function ExpeditionView({
                 onClick={startExpedition}
               >
                 <Play aria-hidden="true" size={21} />
-                Starta expedition
+                {t("expedition.start")}
               </button>
             </>
           ) : null}
@@ -317,7 +380,7 @@ export function ExpeditionView({
               onClick={stopExpedition}
             >
               <Square aria-hidden="true" size={19} />
-              Avsluta expedition
+              {t("expedition.stop")}
             </button>
           ) : null}
 
@@ -327,7 +390,7 @@ export function ExpeditionView({
               className="min-h-11 rounded-md bg-[#22303b] px-4 font-black text-white"
               onClick={reset}
             >
-              Ny expedition
+              {t("expedition.new")}
             </button>
           ) : null}
         </div>
@@ -335,16 +398,16 @@ export function ExpeditionView({
 
       {lastResult ? (
         <section className="rounded-lg border border-[#43d9ad]/30 bg-[#14342d] p-4">
-          <h2 className="text-lg font-black text-white">Resultat</h2>
+          <h2 className="text-lg font-black text-white">{t("expedition.result")}</h2>
           <dl className="mt-3 grid grid-cols-3 gap-3 text-sm">
             <div className="rounded-md bg-[#0f211c] p-3">
-              <dt className="text-[#a9cfc3]">Distans</dt>
+              <dt className="text-[#a9cfc3]">{t("expedition.distance")}</dt>
               <dd className="mt-1 font-black text-white">
                 {formatDistance(lastResult.distanceM)}
               </dd>
             </div>
             <div className="rounded-md bg-[#0f211c] p-3">
-              <dt className="text-[#a9cfc3]">Tid</dt>
+              <dt className="text-[#a9cfc3]">{t("expedition.time")}</dt>
               <dd className="mt-1 font-black text-white">
                 {formatElapsed(lastResult.durationSeconds * 1000)}
               </dd>
@@ -357,9 +420,9 @@ export function ExpeditionView({
         </section>
       ) : null}
 
-      {message || saveError ? (
+      {message || saveError || mapObjectError ? (
         <p className="rounded-md bg-[#22303b] p-3 text-sm leading-6 text-[#d7e1dd]">
-          {message ?? saveError}
+          {message ?? saveError ?? mapObjectError}
         </p>
       ) : null}
     </section>

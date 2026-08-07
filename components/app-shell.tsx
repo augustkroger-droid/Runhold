@@ -26,6 +26,7 @@ export function AppShell() {
     error: profileError,
     createProfile,
     reloadProfile,
+    updateLanguage,
   } = usePlayerProfile(authState.userId);
 
   async function handleSignOut() {
@@ -121,6 +122,7 @@ export function AppShell() {
         userId={authState.userId}
         username={authState.username ?? "spelare"}
         onSignOut={handleSignOut}
+        onLanguageChange={updateLanguage}
         onProfileChanged={async () => {
           await reloadProfile();
         }}

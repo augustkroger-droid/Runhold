@@ -5,9 +5,11 @@ import { useEffect, useMemo, useState } from "react";
 import { CampfirePanel } from "@/components/base/campfire-panel";
 import { ConstructionPanel } from "@/components/base/construction-panel";
 import { RepairPanel } from "@/components/base/repair-panel";
+import { useI18n } from "@/components/i18n-provider";
 import {
   BUILDING_DEFINITIONS,
   type BuildingId,
+  type BuildingState,
 } from "@/lib/game/definitions/buildings";
 import {
   formatCampfireRemaining,
@@ -17,6 +19,7 @@ import { usePlayerBuildings } from "@/hooks/use-player-buildings";
 import { usePlayerCampfire } from "@/hooks/use-player-campfire";
 import { usePlayerRepairs } from "@/hooks/use-player-repairs";
 import { usePlayerTech } from "@/hooks/use-player-tech";
+import { buildingDescription, buildingName } from "@/lib/i18n";
 
 const buildingIcons: Record<BuildingId, typeof Tent> = {
   tent: Tent,
@@ -24,19 +27,23 @@ const buildingIcons: Record<BuildingId, typeof Tent> = {
   wall: Shield,
 };
 
-const stateLabels = {
-  active: "Aktiv",
-  not_built: "Inte byggd",
-  damaged: "Skadad",
-  destroyed: "Utslagen",
-} as const;
-
 const baseCategories = [
-  { id: "camp", name: "Läger", Icon: Tent },
-  { id: "defense", name: "Försvar", Icon: Shield },
+  { id: "camp", nameKey: "base.category.camp", Icon: Tent },
+  { id: "defense", nameKey: "base.category.defense", Icon: Shield },
 ] as const;
 
+const stateLabelKeys: Record<
+  BuildingState,
+  "base.state.active" | "base.state.not_built" | "base.state.damaged" | "base.state.destroyed"
+> = {
+  active: "base.state.active",
+  not_built: "base.state.not_built",
+  damaged: "base.state.damaged",
+  destroyed: "base.state.destroyed",
+};
+
 export function BaseOverview({ userId }: { userId: string }) {
+  const { language, t } = useI18n();
   const { buildings, loading, error, reloadBuildings } = usePlayerBuildings(userId);
   const campfireState = usePlayerCampfire(userId);
   const repairState = usePlayerRepairs(userId);
@@ -88,11 +95,11 @@ export function BaseOverview({ userId }: { userId: string }) {
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 font-black text-white">
           <Home aria-hidden="true" size={19} />
-          Bas
+          {t("base.title")}
         </div>
         {loading ? (
           <span className="text-xs font-bold uppercase tracking-[0.12em] text-[#aeb9b6]">
-            Laddar
+            {t("common.loading")}
           </span>
         ) : null}
       </div>
@@ -118,7 +125,7 @@ export function BaseOverview({ userId }: { userId: string }) {
                 <span className="flex items-center gap-2 font-black text-white">
                   <Folder aria-hidden="true" size={19} className="text-[#f5b84b]" />
                   <CategoryIcon aria-hidden="true" size={18} className="text-[#aeb9b6]" />
-                  {category.name}
+                  {t(category.nameKey)}
                 </span>
                 <ChevronDown
                   aria-hidden="true"
@@ -166,9 +173,11 @@ export function BaseOverview({ userId }: { userId: string }) {
                               <Icon aria-hidden="true" size={21} />
                             </div>
                             <div className="min-w-0">
-                              <h3 className="font-black text-white">{definition.name}</h3>
+                              <h3 className="font-black text-white">
+                                {buildingName(language, definition.id)}
+                              </h3>
                               <p className="mt-1 text-xs font-bold uppercase tracking-[0.12em] text-[#aeb9b6]">
-                                Nivå {level} · {stateLabels[state]}
+                                {t("common.level")} {level} · {t(stateLabelKeys[state])}
                               </p>
                             </div>
                           </div>
@@ -198,13 +207,15 @@ export function BaseOverview({ userId }: { userId: string }) {
 
       {selectedBuilding && selectedDefinition ? (
         <div className="mt-3 rounded-md bg-[#101820] p-3 text-sm leading-6 text-[#c9d4d0]">
-          <p className="font-bold text-white">{selectedDefinition.name}</p>
-          <p className="mt-1">{selectedDefinition.description}</p>
+          <p className="font-bold text-white">
+            {buildingName(language, selectedDefinition.id)}
+          </p>
+          <p className="mt-1">{buildingDescription(language, selectedDefinition.id)}</p>
           <p className="mt-2 text-[#aeb9b6]">
-            Status: {stateLabels[selectedBuilding.state]} · Nivå{" "}
-            {selectedBuilding.level}
+            {t("common.status")}: {t(stateLabelKeys[selectedBuilding.state])} ·{" "}
+            {t("common.level")} {selectedBuilding.level}
             {selectedDefinition.usesHp
-              ? ` · HP: ${selectedBuilding.currentHp}/${selectedBuilding.maxHp}`
+              ? ` · ${t("common.hp")}: ${selectedBuilding.currentHp}/${selectedBuilding.maxHp}`
               : ""}
           </p>
         </div>

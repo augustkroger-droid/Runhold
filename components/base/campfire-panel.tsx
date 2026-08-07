@@ -2,6 +2,7 @@
 
 import { Flame, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useI18n } from "@/components/i18n-provider";
 import { CAMPFIRE_CONFIG } from "@/lib/game/definitions/campfire";
 import {
   formatCampfireRemaining,
@@ -23,6 +24,7 @@ export function CampfirePanel({
   fueling: boolean;
   fuelCampfire: (woodAmount: number) => Promise<void>;
 }) {
+  const { t } = useI18n();
   const [now, setNow] = useState(() => new Date().toISOString());
   const [localError, setLocalError] = useState<string | null>(null);
   const snapshot = getCampfireSnapshot(campfire, now);
@@ -46,7 +48,7 @@ export function CampfirePanel({
       setLocalError(
         fuelError instanceof Error
           ? fuelError.message
-          : "Kunde inte fylla på elden just nu.",
+          : t("campfire.fuelError"),
       );
     }
   }
@@ -56,7 +58,7 @@ export function CampfirePanel({
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 font-black text-white">
           <Flame aria-hidden="true" size={20} className="text-[#f5b84b]" />
-          Lägereld
+          {t("campfire.title")}
         </div>
         <span
           className={`rounded-md px-2 py-1 text-xs font-black ${
@@ -65,13 +67,15 @@ export function CampfirePanel({
               : "bg-black/25 text-[#f5b84b]"
           }`}
         >
-          {snapshot.isBurning ? "Brinner" : "Slocknad"}
+          {snapshot.isBurning ? t("campfire.burning") : t("campfire.out")}
         </span>
       </div>
 
       <div className="mt-3 rounded-md bg-[#101820] p-3">
         <div className="flex items-center justify-between gap-3">
-          <span className="text-sm font-bold text-[#aeb9b6]">Återstående tid</span>
+          <span className="text-sm font-bold text-[#aeb9b6]">
+            {t("campfire.remaining")}
+          </span>
           <span className="text-lg font-black text-white">
             {formatCampfireRemaining(capacity.remainingMs, {
               includeSeconds: CAMPFIRE_CONFIG.showSecondsInDetail,
@@ -85,8 +89,10 @@ export function CampfirePanel({
           />
         </div>
         <p className="mt-2 text-xs leading-5 text-[#aeb9b6]">
-          1 trä ger {CAMPFIRE_CONFIG.burnMinutesPerWood} minuter brinntid. Max{" "}
-          {CAMPFIRE_CONFIG.maxBurnHours} timmar.
+          {t("campfire.balance", {
+            minutes: CAMPFIRE_CONFIG.burnMinutesPerWood,
+            hours: CAMPFIRE_CONFIG.maxBurnHours,
+          })}
         </p>
       </div>
 
@@ -100,7 +106,7 @@ export function CampfirePanel({
             onClick={() => handleFuel(woodAmount)}
           >
             <Plus aria-hidden="true" size={18} />
-            {woodAmount} trä
+            {woodAmount} {t("resource.wood").toLowerCase()}
           </button>
         ))}
         <button
@@ -110,7 +116,7 @@ export function CampfirePanel({
           onClick={() => handleFuel(capacity.woodNeededToFill)}
         >
           <Plus aria-hidden="true" size={18} />
-          Full
+          {t("campfire.full")}
         </button>
       </div>
 

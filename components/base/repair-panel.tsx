@@ -2,22 +2,17 @@
 
 import { Hammer, ShieldAlert } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { useI18n } from "@/components/i18n-provider";
 import type { BuildingDefinition } from "@/lib/game/definitions/buildings";
-import { RESOURCE_DEFINITIONS } from "@/lib/game/definitions/resources";
 import { getRepairDefinition } from "@/lib/game/definitions/repairs";
 import type { PlayerBuilding } from "@/lib/game/state/player-buildings";
 import type { PlayerRepair } from "@/lib/game/state/player-repairs";
 import { formatRemainingDuration, getTimerSnapshot } from "@/lib/game/systems/timers";
+import { type Language, resourceName } from "@/lib/i18n";
 
-function formatRepairCost(cost: Record<string, number>): string {
+function formatRepairCost(cost: Record<string, number>, language: Language): string {
   return Object.entries(cost)
-    .map(([resourceId, amount]) => {
-      const resource = RESOURCE_DEFINITIONS.find(
-        (definition) => definition.id === resourceId,
-      );
-
-      return `${amount} ${resource?.name ?? resourceId}`;
-    })
+    .map(([resourceId, amount]) => `${amount} ${resourceName(language, resourceId)}`)
     .join(" · ");
 }
 
@@ -61,6 +56,7 @@ export function RepairPanel({
   onDamage: () => Promise<void>;
   onChanged: () => void;
 }) {
+  const { language, t } = useI18n();
   const [now, setNow] = useState(() => new Date().toISOString());
   const repairPreview = useMemo(() => calculateRepairPreview(building), [building]);
   const snapshot = activeRepair
@@ -95,7 +91,7 @@ export function RepairPanel({
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 font-black text-white">
           <ShieldAlert aria-hidden="true" size={19} />
-          Skick
+          {t("repair.title")}
         </div>
         <span className="text-sm font-black text-white">
           {building.currentHp}/{building.maxHp} HP
@@ -117,10 +113,10 @@ export function RepairPanel({
       {activeRepair && snapshot ? (
         <div className="mt-3 rounded-md bg-[#101820] p-3">
           <div className="flex items-center justify-between gap-3">
-            <span className="text-sm font-bold text-[#aeb9b6]">Reparation</span>
+            <span className="text-sm font-bold text-[#aeb9b6]">{t("repair.repair")}</span>
             <span className="text-sm font-black text-white">
               {snapshot.status === "completed"
-                ? "Klar"
+                ? t("common.ready")
                 : formatRemainingDuration(snapshot.remainingMs)}
             </span>
           </div>
@@ -134,8 +130,8 @@ export function RepairPanel({
       ) : repairPreview ? (
         <div className="mt-3 grid gap-2">
           <p className="rounded-md bg-[#101820] p-3 text-sm font-bold text-[#c9d4d0]">
-            Reparation: {repairPreview.missingHp} HP ·{" "}
-            {formatRepairCost(repairPreview.cost)}
+            {t("repair.repair")}: {repairPreview.missingHp} {t("common.hp")} ·{" "}
+            {formatRepairCost(repairPreview.cost, language)}
           </p>
           <button
             type="button"
@@ -144,12 +140,12 @@ export function RepairPanel({
             onClick={onRepair}
           >
             <Hammer aria-hidden="true" size={18} />
-            Reparera
+            {t("repair.start")}
           </button>
         </div>
       ) : (
         <p className="mt-3 rounded-md bg-[#101820] p-3 text-sm font-bold text-[#c9d4d0]">
-          I gott skick
+          {t("repair.good")}
         </p>
       )}
 
@@ -159,7 +155,7 @@ export function RepairPanel({
         disabled={damaging || activeRepair !== null}
         onClick={onDamage}
       >
-        Övningsattack
+        {t("repair.practice")}
       </button>
     </section>
   );

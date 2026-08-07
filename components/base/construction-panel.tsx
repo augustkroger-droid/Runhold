@@ -2,13 +2,14 @@
 
 import { Hammer } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { useI18n } from "@/components/i18n-provider";
 import {
   type ConstructionId,
   getConstructionDefinition,
 } from "@/lib/game/definitions/construction";
-import { RESOURCE_DEFINITIONS } from "@/lib/game/definitions/resources";
 import { formatRemainingDuration, getTimerSnapshot } from "@/lib/game/systems/timers";
 import { usePlayerConstructions } from "@/hooks/use-player-constructions";
+import { buildingDescription, buildingName, resourceName } from "@/lib/i18n";
 
 export function ConstructionPanel({
   userId,
@@ -21,6 +22,7 @@ export function ConstructionPanel({
   isBuilt: boolean;
   onChanged: () => void;
 }) {
+  const { language, t } = useI18n();
   const {
     constructions,
     loading,
@@ -47,14 +49,10 @@ export function ConstructionPanel({
     () =>
       Object.entries(definition.cost)
         .map(([resourceId, amount]) => {
-          const resource = RESOURCE_DEFINITIONS.find(
-            (definition) => definition.id === resourceId,
-          );
-
-          return `${amount} ${resource?.name ?? resourceId}`;
+          return `${amount} ${resourceName(language, resourceId)}`;
         })
         .join(" · "),
-    [definition.cost],
+    [definition.cost, language],
   );
 
   useEffect(() => {
@@ -85,7 +83,7 @@ export function ConstructionPanel({
       <section className="rounded-lg border border-[#43d9ad]/25 bg-[#14342d] p-4">
         <div className="flex items-center gap-2 font-black text-white">
           <Hammer aria-hidden="true" size={19} />
-          Mur byggd
+          {t("construction.built.wall")}
         </div>
       </section>
     );
@@ -95,17 +93,21 @@ export function ConstructionPanel({
     <section className="rounded-lg border border-white/10 bg-[#18232d] p-4">
       <div className="flex items-center gap-2 font-black text-white">
         <Hammer aria-hidden="true" size={19} />
-        {definition.name}
+        {buildingName(language, definition.targetBuildingId)}
       </div>
-      <p className="mt-2 text-sm leading-6 text-[#c9d4d0]">{definition.description}</p>
+      <p className="mt-2 text-sm leading-6 text-[#c9d4d0]">
+        {buildingDescription(language, definition.targetBuildingId)}
+      </p>
 
       {activeConstruction && snapshot ? (
         <div className="mt-3 rounded-md bg-[#101820] p-3">
           <div className="flex items-center justify-between gap-3">
-            <span className="text-sm font-bold text-[#aeb9b6]">Pågår</span>
+            <span className="text-sm font-bold text-[#aeb9b6]">
+              {t("construction.active")}
+            </span>
             <span className="text-sm font-black text-white">
               {snapshot.status === "completed"
-                ? "Klar"
+                ? t("common.ready")
                 : formatRemainingDuration(snapshot.remainingMs)}
             </span>
           </div>
@@ -119,7 +121,7 @@ export function ConstructionPanel({
       ) : (
         <>
           <p className="mt-3 rounded-md bg-[#101820] p-3 text-sm font-bold text-[#c9d4d0]">
-            Kostnad: {costText}
+            {t("common.cost")}: {costText}
           </p>
           <button
             type="button"
@@ -128,7 +130,7 @@ export function ConstructionPanel({
             onClick={handleStart}
           >
             <Hammer aria-hidden="true" size={18} />
-            Starta byggnation
+            {t("construction.start")}
           </button>
         </>
       )}

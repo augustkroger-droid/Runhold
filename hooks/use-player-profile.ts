@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { TrainingLevelId } from "@/lib/game/definitions/training-levels";
+import type { Language } from "@/lib/i18n";
 import {
   type PlayerGameProfile,
   type PlayerGameProfileRow,
@@ -103,12 +104,44 @@ export function usePlayerProfile(userId: string | null) {
     [userId],
   );
 
+  const updateLanguage = useCallback(
+    async (language: Language) => {
+      if (!userId || !state.profile) {
+        throw new Error("Du behöver vara inloggad.");
+      }
+
+      const nextSettings = {
+        ...state.profile.settings,
+        language,
+      };
+
+      const supabase = getSupabaseClient();
+      const { data, error } = await supabase
+        .from("player_profiles")
+        .update({ settings: nextSettings })
+        .eq("user_id", userId)
+        .select()
+        .single();
+
+      if (error) {
+        setState((current) => ({ ...current, error: error.message }));
+        throw error;
+      }
+
+      const profile = mapPlayerGameProfileRow(data as PlayerGameProfileRow);
+      setState({ loadedUserId: userId, profile, loading: false, error: null });
+      return profile;
+    },
+    [state.profile, userId],
+  );
+
   const loading = state.loading || (Boolean(userId) && state.loadedUserId !== userId);
 
   return {
     ...state,
     loading,
     createProfile,
+    updateLanguage,
     reloadProfile: loadProfile,
   };
 }

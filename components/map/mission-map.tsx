@@ -13,6 +13,8 @@ import {
   useMapEvents,
 } from "react-leaflet";
 import type { Coordinate } from "@/lib/game/gps/position";
+import type { PlayerMapObject } from "@/lib/game/state/map-objects";
+import { RESOURCE_DEFINITIONS } from "@/lib/game/definitions/resources";
 
 const startIcon = L.divIcon({
   className: "",
@@ -34,6 +36,19 @@ const currentIcon = L.divIcon({
   iconSize: [24, 24],
   iconAnchor: [12, 12],
 });
+
+function mapObjectIcon(object: PlayerMapObject) {
+  const resource = RESOURCE_DEFINITIONS.find(
+    (definition) => definition.id === object.resourceId,
+  );
+
+  return L.divIcon({
+    className: "",
+    html: `<span class="runhold-map-object">${resource?.icon ?? "?"}</span>`,
+    iconSize: [30, 30],
+    iconAnchor: [15, 15],
+  });
+}
 
 function MapClickHandler({
   enabled,
@@ -72,6 +87,7 @@ export function MissionMap({
   canSelectDestination,
   showStartRadius,
   scanRadiusM,
+  mapObjects = [],
   onDestinationSelect,
 }: {
   start: Coordinate;
@@ -80,6 +96,7 @@ export function MissionMap({
   canSelectDestination: boolean;
   showStartRadius: boolean;
   scanRadiusM?: number | null;
+  mapObjects?: PlayerMapObject[];
   onDestinationSelect: (point: Coordinate) => void;
 }) {
   const activeCenter = current ?? start;
@@ -121,6 +138,13 @@ export function MissionMap({
           pathOptions={{ color: "#f5b84b", fillColor: "#f5b84b", fillOpacity: 0.08 }}
         />
       ) : null}
+      {mapObjects.map((object) => (
+        <Marker
+          key={object.id}
+          position={[object.position.lat, object.position.lng]}
+          icon={mapObjectIcon(object)}
+        />
+      ))}
       {destination ? (
         <>
           <Marker position={[destination.lat, destination.lng]} icon={destinationIcon} />

@@ -1,16 +1,22 @@
 "use client";
 
 import { Check, Lock, Network, Sparkles } from "lucide-react";
+import { useI18n } from "@/components/i18n-provider";
 import { TECH_DEFINITIONS, type TechId } from "@/lib/game/definitions/tech";
 import { isTechAvailable } from "@/lib/game/state/player-tech";
 import { usePlayerTech } from "@/hooks/use-player-tech";
+import { type Language, techDescription, techName } from "@/lib/i18n";
 
-function prerequisiteText(prerequisites: readonly TechId[]): string {
-  if (prerequisites.length === 0) return "Tillgänglig";
+function prerequisiteText(
+  prerequisites: readonly TechId[],
+  language: Language,
+  t: (key: "tech.available" | "tech.requires", values?: Record<string, string>) => string,
+): string {
+  if (prerequisites.length === 0) return t("tech.available");
 
-  return `Kräver ${prerequisites
-    .map((techId) => TECH_DEFINITIONS.find((tech) => tech.id === techId)?.name ?? techId)
-    .join(", ")}`;
+  return t("tech.requires", {
+    items: prerequisites.map((techId) => techName(language, techId)).join(", "),
+  });
 }
 
 export function TechOverview({
@@ -22,6 +28,7 @@ export function TechOverview({
   xp: number;
   onChanged: () => Promise<void>;
 }) {
+  const { language, t } = useI18n();
   const { unlockedTechIds, loading, error, unlocking, unlockTech } =
     usePlayerTech(userId);
 
@@ -35,7 +42,7 @@ export function TechOverview({
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 font-black text-white">
           <Network aria-hidden="true" size={19} />
-          Tech
+          {t("tech.title")}
         </div>
         <span className="rounded-md bg-[#101820] px-3 py-2 text-sm font-black text-[#43d9ad]">
           {xp} XP
@@ -69,13 +76,15 @@ export function TechOverview({
                     ) : (
                       <Lock aria-hidden="true" size={18} className="text-[#aeb9b6]" />
                     )}
-                    {tech.name}
+                    {techName(language, tech.id)}
                   </div>
                   <p className="mt-2 text-sm leading-6 text-[#c9d4d0]">
-                    {tech.description}
+                    {techDescription(language, tech.id)}
                   </p>
                   <p className="mt-2 text-xs font-bold uppercase tracking-[0.12em] text-[#aeb9b6]">
-                    {unlocked ? "Upplåst" : prerequisiteText(tech.prerequisites)}
+                    {unlocked
+                      ? t("tech.unlocked")
+                      : prerequisiteText(tech.prerequisites, language, t)}
                   </p>
                 </div>
                 <span className="shrink-0 rounded-md bg-black/20 px-2 py-1 text-xs font-black text-[#d7e1dd]">
@@ -90,7 +99,7 @@ export function TechOverview({
                   disabled={!available || !canAfford || loading || unlocking === tech.id}
                   onClick={() => handleUnlock(tech.id)}
                 >
-                  {unlocking === tech.id ? "Lär..." : "Lär dig"}
+                  {unlocking === tech.id ? t("tech.learning") : t("tech.learn")}
                 </button>
               ) : null}
             </div>

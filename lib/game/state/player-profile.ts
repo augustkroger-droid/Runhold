@@ -1,4 +1,5 @@
 import type { TrainingLevelId } from "@/lib/game/definitions/training-levels";
+import { type Language, getLanguageFromSettings } from "@/lib/i18n";
 
 export type PlayerSettings = Record<string, unknown>;
 
@@ -9,6 +10,7 @@ export type PlayerGameProfile = {
   characterLevel: number;
   xp: number;
   settings: PlayerSettings;
+  language: Language;
 };
 
 export type PlayerGameProfileRow = {
@@ -32,5 +34,6 @@ export function mapPlayerGameProfileRow(
     characterLevel: row.character_level,
     xp: row.xp,
     settings: row.settings ?? {},
+    language: getLanguageFromSettings(row.settings ?? {}),
   };
 }

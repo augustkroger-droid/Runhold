@@ -119,6 +119,22 @@ input {
   background: #1d4ed8;
 }
 
+.runhold-map-object {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 2px solid rgba(255, 255, 255, 0.92);
+  border-radius: 999px;
+  background: #152018;
+  box-shadow:
+    0 0 0 4px rgba(245, 184, 75, 0.18),
+    0 8px 20px rgba(0, 0, 0, 0.36);
+  color: #f5b84b;
+  font-size: 17px;
+  line-height: 1;
+}
+
 @media (display-mode: standalone) {
   body {
     overscroll-behavior-y: contain;

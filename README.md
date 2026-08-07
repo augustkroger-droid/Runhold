@@ -1,8 +1,8 @@
 # Runhold
 
-Runhold är en mobilanpassad PWA för ett GPS-drivet löparspel. Appen har inloggning, spelprofil, bas, förråd, lägereld, byggnation, reparationer, tech tree och en första expeditionsvy med GPS, scanner och XP.
+Runhold är en mobilanpassad PWA för ett GPS-drivet löparspel. Appen har inloggning, spelprofil, bas, förråd, lägereld, byggnation, reparationer, tech tree, språkval och en första expeditionsvy med GPS, scanner, kartobjekt, automatisk uppsamling och XP.
 
-Expeditionen använder mobilens position lokalt under aktiv runda. När expeditionen avslutas sparas en sammanfattning i Supabase och spelaren får XP som kan användas i tech tree.
+Expeditionen använder mobilens position lokalt under aktiv runda. När spelaren scannar genereras spelarspecifika kartsektorer nära aktuell position. Objekten är alltså olika per spelare, skapas bara nära där spelaren faktiskt spelar och försvinner för den spelaren när de samlas.
 
 ## Lokalt
 
@@ -63,7 +63,7 @@ GPS kräver normalt HTTPS på mobil. Lokal testning fungerar bäst med webbläsa
 3. Aktivera email/password-inloggning under `Authentication` -> `Sign In / Providers` -> `Email`.
 4. För nuvarande testläge: stäng av email confirmation så att nya konton kan logga in direkt. Vi kopplar riktig mailverifiering och lösenordsåterställning senare.
 5. Signup använder riktig emailadress, användarnamn och lösenord. Login använder användarnamn och lösenord.
-6. Kör SQL-migrationerna i `supabase/migrations/001_initial_schema.sql` till och med `supabase/migrations/013_expeditions.sql` via Supabase SQL Editor, eller med Supabase CLI om du använder CLI lokalt. Migration 011 skapar reparationer, HP-skada och repair timers. Migration 012 skapar tech tree och låser muren bakom `basic_wall`. Migration 013 skapar expeditionssammanfattningar och XP-belöningar.
+6. Kör SQL-migrationerna i `supabase/migrations/001_initial_schema.sql` till och med `supabase/migrations/014_player_map_objects.sql` via Supabase SQL Editor, eller med Supabase CLI om du använder CLI lokalt. Migration 011 skapar reparationer, HP-skada och repair timers. Migration 012 skapar tech tree och låser muren bakom `basic_wall`. Migration 013 skapar expeditionssammanfattningar och XP-belöningar. Migration 014 skapar spelarspecifika kartsektorer, scanner-resultat och automatisk uppsamling.
 7. Om `DATABASE_URL`, Supabase CLI eller annan admin-anslutning finns i miljön kan migrationer köras direkt från terminalen. Med endast publishable/anon key måste SQL köras i Supabase SQL Editor.
 8. Kontrollera att RLS är aktivt:
 

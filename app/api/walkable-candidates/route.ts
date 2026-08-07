@@ -4,6 +4,7 @@ import {
 } from "@/lib/geo/walkable-candidates";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 const overpassUrls = [
   "https://overpass-api.de/api/interpreter",
@@ -32,35 +33,42 @@ export async function GET(request: Request) {
   }
 
   const center = { lat, lng };
-  const query = buildWalkableOverpassQuery(center, radiusM);
+  const queryRadiiM = Array.from(
+    new Set([Math.min(radiusM, 2000), Math.min(radiusM, 3000), radiusM]),
+  ).filter((nextRadiusM) => nextRadiusM >= 250 && nextRadiusM <= radiusM);
 
-  for (const overpassUrl of overpassUrls) {
-    try {
-      const response = await fetch(overpassUrl, {
-        method: "POST",
-        headers: {
-          "content-type": "application/x-www-form-urlencoded;charset=UTF-8",
-          "user-agent": "Runhold MVP walkable spawn candidates",
-        },
-        body: new URLSearchParams({ data: query }),
-        next: { revalidate: 300 },
-      });
+  for (const queryRadiusM of queryRadiiM) {
+    const query = buildWalkableOverpassQuery(center, queryRadiusM);
 
-      if (!response.ok) continue;
-
-      const data = await response.json();
-      const candidates = parseWalkableCandidates(data, center, radiusM);
-
-      if (candidates.length > 0) {
-        return Response.json({
-          candidates,
-          source: "openstreetmap-overpass",
+    for (const overpassUrl of overpassUrls) {
+      try {
+        const response = await fetch(overpassUrl, {
+          method: "POST",
+          headers: {
+            "content-type": "application/x-www-form-urlencoded;charset=UTF-8",
+            "user-agent": "Runhold MVP walkable spawn candidates",
+          },
+          body: new URLSearchParams({ data: query }),
+          cache: "no-store",
         });
+
+        if (!response.ok) continue;
+
+        const data = await response.json();
+        const candidates = parseWalkableCandidates(data, center, queryRadiusM);
+
+        if (candidates.length > 0) {
+          return Response.json({
+            candidates,
+            radiusM: queryRadiusM,
+            source: "openstreetmap-overpass",
+          });
+        }
+      } catch {
+        continue;
       }
-    } catch {
-      continue;
     }
   }
 
-  return Response.json({ candidates: [], source: "overpass-empty" });
+  return Response.json({ candidates: [], radiusM, source: "overpass-empty" });
 }

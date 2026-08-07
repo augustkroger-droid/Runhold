@@ -11,6 +11,12 @@ import {
 } from "@/lib/game/state/map-objects";
 import { getSupabaseClient } from "@/lib/supabase/client";
 
+type WalkableCandidateResponse = {
+  candidates: WalkableCandidate[];
+  source: string;
+  radiusM: number;
+};
+
 function mapObjectErrorMessage(message: string): string {
   if (/MAP_OBJECT_NOT_FOUND/i.test(message)) {
     return "Fyndet finns inte längre.";
@@ -37,7 +43,7 @@ async function fetchWalkableCandidates({
 }: {
   center: Coordinate;
   radiusM: number;
-}): Promise<WalkableCandidate[]> {
+}): Promise<WalkableCandidateResponse> {
   const params = new URLSearchParams({
     lat: String(center.lat),
     lng: String(center.lng),
@@ -45,19 +51,45 @@ async function fetchWalkableCandidates({
   });
   const response = await fetch(`/api/walkable-candidates?${params.toString()}`);
 
-  if (!response.ok) return [];
+  if (!response.ok) {
+    return { candidates: [], source: "walkable-api-error", radiusM };
+  }
 
   const data = (await response.json()) as {
     candidates?: WalkableCandidate[];
+    source?: string;
+    radiusM?: number;
   };
 
-  return (data.candidates ?? []).filter(
-    (candidate) =>
-      Number.isFinite(candidate.lat) &&
-      Number.isFinite(candidate.lng) &&
-      Math.abs(candidate.lat) <= 90 &&
-      Math.abs(candidate.lng) <= 180,
-  );
+  return {
+    candidates: (data.candidates ?? []).filter(
+      (candidate) =>
+        Number.isFinite(candidate.lat) &&
+        Number.isFinite(candidate.lng) &&
+        Math.abs(candidate.lat) <= 90 &&
+        Math.abs(candidate.lng) <= 180,
+    ),
+    source: data.source ?? "unknown",
+    radiusM: data.radiusM ?? radiusM,
+  };
+}
+
+function mergeWalkableCandidates(
+  primary: WalkableCandidate[],
+  secondary: WalkableCandidate[],
+): WalkableCandidate[] {
+  const merged: WalkableCandidate[] = [];
+  const seen = new Set<string>();
+
+  for (const candidate of [...primary, ...secondary]) {
+    const key = `${candidate.lat.toFixed(5)}:${candidate.lng.toFixed(5)}`;
+    if (seen.has(key)) continue;
+
+    seen.add(key);
+    merged.push(candidate);
+  }
+
+  return merged;
 }
 
 export function useMapObjects() {
@@ -78,10 +110,30 @@ export function useMapObjects() {
       setError(null);
 
       const supabase = getSupabaseClient();
-      const walkableCandidates = await fetchWalkableCandidates({
+      const visibleCandidates = await fetchWalkableCandidates({
         center,
-        radiusM: Math.max(scanRadiusM, MAP_OBJECT_CONFIG.spawnRadiusM),
+        radiusM: scanRadiusM,
       });
+      const widerCandidates =
+        visibleCandidates.candidates.length >= 24
+          ? { candidates: [], source: "visible-candidates-enough", radiusM: scanRadiusM }
+          : await fetchWalkableCandidates({
+              center,
+              radiusM: MAP_OBJECT_CONFIG.spawnRadiusM,
+            });
+      const walkableCandidates = mergeWalkableCandidates(
+        visibleCandidates.candidates,
+        widerCandidates.candidates,
+      );
+
+      if (walkableCandidates.length === 0) {
+        const message =
+          "Inga säkra fyndplatser hittades i närheten. Testa att scanna igen om en stund.";
+        setError(message);
+        setScanning(false);
+        throw new Error(message);
+      }
+
       const { data, error: scanError } = await supabase.rpc("scan_player_map_objects", {
         input_lat: center.lat,
         input_lng: center.lng,

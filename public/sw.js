@@ -1,5 +1,10 @@
-const CACHE_NAME = "runhold-static-v1";
-const STATIC_ASSETS = ["/", "/offline.html", "/icons/icon-192.svg", "/icons/icon-512.svg"];
+const CACHE_NAME = "runhold-static-v2";
+const STATIC_ASSETS = [
+  "/",
+  "/offline.html",
+  "/icons/runhold-app-icon-192.png",
+  "/icons/runhold-app-icon-512.png",
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

@@ -5,8 +5,8 @@ export const metadata: Metadata = {
   title: "Runhold",
   description: "Runhold: gå på uppdrag, samla resurser och bygg ditt läger.",
   icons: {
-    icon: "/icons/icon-192.svg",
-    apple: "/icons/icon-192.svg",
+    icon: "/icons/runhold-app-icon-192.png",
+    apple: "/icons/runhold-app-icon-180.png",
   },
   appleWebApp: {
     capable: true,

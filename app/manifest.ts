@@ -13,15 +13,15 @@ export default function manifest(): MetadataRoute.Manifest {
     orientation: "portrait",
     icons: [
       {
-        src: "/icons/icon-192.svg",
+        src: "/icons/runhold-app-icon-192.png",
         sizes: "192x192",
-        type: "image/svg+xml",
+        type: "image/png",
         purpose: "maskable",
       },
       {
-        src: "/icons/icon-512.svg",
+        src: "/icons/runhold-app-icon-512.png",
         sizes: "512x512",
-        type: "image/svg+xml",
+        type: "image/png",
         purpose: "maskable",
       },
     ],

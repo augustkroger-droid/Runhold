@@ -4,6 +4,7 @@ import { ChevronDown, Flame, Folder, Home, Shield, Tent } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { CampfirePanel } from "@/components/base/campfire-panel";
 import { ConstructionPanel } from "@/components/base/construction-panel";
+import { RaidPanel } from "@/components/base/raid-panel";
 import { RepairPanel } from "@/components/base/repair-panel";
 import { useI18n } from "@/components/i18n-provider";
 import {
@@ -102,6 +103,10 @@ export function BaseOverview({ userId }: { userId: string }) {
             {t("common.loading")}
           </span>
         ) : null}
+      </div>
+
+      <div className="mt-3">
+        <RaidPanel userId={userId} onChanged={handleBaseChanged} />
       </div>
 
       <div className="mt-3 grid gap-3">

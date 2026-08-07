@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bug, Info, LogOut, Satellite, Trophy } from "lucide-react";
+import { BaseOverview } from "@/components/base/base-overview";
 import { LocationPermissionCard } from "@/components/location-permission-card";
 import { ResourceInventory } from "@/components/inventory/resource-inventory";
 import { MapLoader } from "@/components/map/map-loader";
@@ -530,6 +531,7 @@ export function MissionApp({
         </div>
       </header>
 
+      <BaseOverview userId={userId} />
       <ResourceInventory userId={userId} />
 
       {!showMap ? (

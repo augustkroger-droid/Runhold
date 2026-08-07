@@ -47,4 +47,34 @@ describe("walkable candidates", () => {
     expect(candidates.length).toBeGreaterThan(1);
     expect(candidates[0]).toEqual({ lat: 57.78, lng: 14.16 });
   });
+
+  it("prioritizes nearby candidates before distant ones", () => {
+    const candidates = parseWalkableCandidates(
+      {
+        elements: [
+          {
+            type: "way",
+            id: 1,
+            geometry: [
+              { lat: 57.82, lng: 14.16 },
+              { lat: 57.821, lng: 14.16 },
+            ],
+          },
+          {
+            type: "way",
+            id: 2,
+            geometry: [
+              { lat: 57.78, lng: 14.16 },
+              { lat: 57.781, lng: 14.16 },
+            ],
+          },
+        ],
+      },
+      { lat: 57.78, lng: 14.16 },
+      5000,
+      3,
+    );
+
+    expect(candidates[0]).toEqual({ lat: 57.78, lng: 14.16 });
+  });
 });

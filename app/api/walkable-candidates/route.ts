@@ -5,7 +5,11 @@ import {
 
 export const runtime = "nodejs";
 
-const overpassUrl = "https://overpass-api.de/api/interpreter";
+const overpassUrls = [
+  "https://overpass-api.de/api/interpreter",
+  "https://overpass.kumi.systems/api/interpreter",
+  "https://overpass.openstreetmap.ru/api/interpreter",
+];
 
 function parseNumber(value: string | null): number | null {
   if (!value) return null;
@@ -30,29 +34,33 @@ export async function GET(request: Request) {
   const center = { lat, lng };
   const query = buildWalkableOverpassQuery(center, radiusM);
 
-  try {
-    const response = await fetch(overpassUrl, {
-      method: "POST",
-      headers: {
-        "content-type": "application/x-www-form-urlencoded;charset=UTF-8",
-        "user-agent": "Runhold MVP walkable spawn candidates",
-      },
-      body: new URLSearchParams({ data: query }),
-      next: { revalidate: 300 },
-    });
+  for (const overpassUrl of overpassUrls) {
+    try {
+      const response = await fetch(overpassUrl, {
+        method: "POST",
+        headers: {
+          "content-type": "application/x-www-form-urlencoded;charset=UTF-8",
+          "user-agent": "Runhold MVP walkable spawn candidates",
+        },
+        body: new URLSearchParams({ data: query }),
+        next: { revalidate: 300 },
+      });
 
-    if (!response.ok) {
-      return Response.json({ candidates: [], source: "overpass-unavailable" });
+      if (!response.ok) continue;
+
+      const data = await response.json();
+      const candidates = parseWalkableCandidates(data, center, radiusM);
+
+      if (candidates.length > 0) {
+        return Response.json({
+          candidates,
+          source: "openstreetmap-overpass",
+        });
+      }
+    } catch {
+      continue;
     }
-
-    const data = await response.json();
-    const candidates = parseWalkableCandidates(data, center, radiusM);
-
-    return Response.json({
-      candidates,
-      source: "openstreetmap-overpass",
-    });
-  } catch {
-    return Response.json({ candidates: [], source: "overpass-unavailable" });
   }
+
+  return Response.json({ candidates: [], source: "overpass-empty" });
 }

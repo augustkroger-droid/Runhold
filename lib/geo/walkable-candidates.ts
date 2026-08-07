@@ -78,7 +78,7 @@ export function parseWalkableCandidates(
   data: OverpassResponse,
   center: Coordinate,
   radiusM: number,
-  maxCandidates = 240,
+  maxCandidates = 360,
 ): WalkableCandidate[] {
   const candidates: WalkableCandidate[] = [];
   const seen = new Set<string>();
@@ -103,13 +103,16 @@ export function parseWalkableCandidates(
 
         seen.add(key);
         candidates.push(point);
-
-        if (candidates.length >= maxCandidates) {
-          return candidates;
-        }
       }
     }
   }
 
-  return candidates;
+  return candidates
+    .map((point) => ({
+      point,
+      distanceM: haversineDistanceMeters(center, point),
+    }))
+    .sort((left, right) => left.distanceM - right.distanceM)
+    .slice(0, maxCandidates)
+    .map(({ point }) => point);
 }

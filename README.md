@@ -63,7 +63,7 @@ GPS kräver normalt HTTPS på mobil. Lokal testning fungerar bäst med webbläsa
 3. Aktivera email/password-inloggning under `Authentication` -> `Sign In / Providers` -> `Email`.
 4. För nuvarande testläge: stäng av email confirmation så att nya konton kan logga in direkt. Vi kopplar riktig mailverifiering och lösenordsåterställning senare.
 5. Signup använder riktig emailadress, användarnamn och lösenord. Login använder användarnamn och lösenord.
-6. Kör SQL-migrationerna i `supabase/migrations/001_initial_schema.sql` och `supabase/migrations/002_profiles_auth.sql` via Supabase SQL Editor, eller med Supabase CLI om du använder CLI lokalt. Den andra migrationen skapar `profiles`, unik användarnamnskontroll och uppslag från användarnamn till email vid login.
+6. Kör SQL-migrationerna i `supabase/migrations/001_initial_schema.sql`, `supabase/migrations/002_profiles_auth.sql` och `supabase/migrations/003_player_game_profiles.sql` via Supabase SQL Editor, eller med Supabase CLI om du använder CLI lokalt. Den andra migrationen skapar `profiles`, unik användarnamnskontroll och uppslag från användarnamn till email vid login. Den tredje skapar spelarens grundläggande game state.
 7. Kontrollera att RLS är aktivt:
 
    ```sql

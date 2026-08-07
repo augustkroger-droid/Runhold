@@ -251,13 +251,8 @@ export function BaseOverview({ userId }: { userId: string }) {
             definition={selectedDefinition}
             activeRepair={selectedRepair}
             repairing={repairState.repairing === selectedBuilding.buildingId}
-            damaging={repairState.damaging === selectedBuilding.buildingId}
             onRepair={async () => {
               await repairState.startRepair(selectedBuilding.buildingId);
-              await handleBaseChanged();
-            }}
-            onDamage={async () => {
-              await repairState.damageBuilding(selectedBuilding.buildingId, 25);
               await handleBaseChanged();
             }}
             onChanged={() => {

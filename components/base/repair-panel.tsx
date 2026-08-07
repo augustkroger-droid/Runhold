@@ -42,18 +42,14 @@ export function RepairPanel({
   definition,
   activeRepair,
   repairing,
-  damaging,
   onRepair,
-  onDamage,
   onChanged,
 }: {
   building: PlayerBuilding;
   definition: BuildingDefinition;
   activeRepair: PlayerRepair | null;
   repairing: boolean;
-  damaging: boolean;
   onRepair: () => Promise<void>;
-  onDamage: () => Promise<void>;
   onChanged: () => void;
 }) {
   const { language, t } = useI18n();
@@ -148,15 +144,6 @@ export function RepairPanel({
           {t("repair.good")}
         </p>
       )}
-
-      <button
-        type="button"
-        className="mt-3 flex min-h-10 w-full items-center justify-center gap-2 rounded-md border border-[#f5b84b]/35 bg-[#3d3017] px-3 text-sm font-black text-[#ffe6ad] disabled:cursor-wait disabled:opacity-60"
-        disabled={damaging || activeRepair !== null}
-        onClick={onDamage}
-      >
-        {t("repair.practice")}
-      </button>
     </section>
   );
 }

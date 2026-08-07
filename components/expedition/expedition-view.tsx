@@ -100,12 +100,14 @@ export function ExpeditionView({
   userId,
   onProfileChanged,
   onActiveChange,
+  onExpeditionFinished,
   visible,
   hidden = false,
 }: {
   userId: string;
   onProfileChanged: () => Promise<void>;
   onActiveChange?: (active: boolean) => void;
+  onExpeditionFinished?: () => void;
   visible: boolean;
   hidden?: boolean;
 }) {
@@ -563,12 +565,13 @@ export function ExpeditionView({
       setCurrentItemHaul({});
       setRoutePoints(result.expedition.routePoints);
       setShowResultSummary(true);
+      onExpeditionFinished?.();
       setMessage(t("expedition.done", { xp: result.expedition.xpEarned }));
       await onProfileChanged();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : t("expedition.saveError"));
     }
-  }, [completeExpedition, onProfileChanged, stopWatch, t]);
+  }, [completeExpedition, onExpeditionFinished, onProfileChanged, stopWatch, t]);
 
   const reset = useCallback(() => {
     stopWatch();

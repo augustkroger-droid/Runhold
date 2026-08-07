@@ -1,7 +1,7 @@
 "use client";
 
 import { LogOut, Satellite, Sparkles } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { AppBottomNav, type AppTabId } from "@/components/app-bottom-nav";
 import { BaseOverview } from "@/components/base/base-overview";
 import { ExpeditionView } from "@/components/expedition/expedition-view";
@@ -30,6 +30,16 @@ function MissionAppContent({
   const [activeTab, setActiveTab] = useState<AppTabId>("base");
   const [expeditionActive, setExpeditionActive] = useState(false);
   const { t } = useI18n();
+  const handleExpeditionActiveChange = useCallback((active: boolean) => {
+    if (active) {
+      setActiveTab("expedition");
+    }
+
+    setExpeditionActive(active);
+  }, []);
+  const handleExpeditionFinished = useCallback(() => {
+    setActiveTab("expedition");
+  }, []);
 
   return (
     <main
@@ -72,7 +82,8 @@ function MissionAppContent({
       <ExpeditionView
         userId={userId}
         onProfileChanged={onProfileChanged}
-        onActiveChange={setExpeditionActive}
+        onActiveChange={handleExpeditionActiveChange}
+        onExpeditionFinished={handleExpeditionFinished}
         visible={activeTab === "expedition" || expeditionActive}
         hidden={activeTab !== "expedition" && !expeditionActive}
       />

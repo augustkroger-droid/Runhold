@@ -43,8 +43,8 @@ const allowedHighways = [
 
 const blockedHighwayPattern =
   "^(motorway|motorway_link|trunk|trunk_link|primary|primary_link|construction|raceway)$";
-const blockedAccessPattern = "^(private|no)$";
-const blockedServicePattern = "^(driveway|parking_aisle)$";
+const blockedAccessValues = new Set(["private", "no"]);
+const blockedServiceValues = new Set(["driveway", "parking_aisle"]);
 const sampleSpacingM = 90;
 
 export function boundingBoxForRadius(center: Coordinate, radiusM: number) {
@@ -78,10 +78,6 @@ export function buildWalkableOverpassQuery(
 (
   way
     ${highwayFilter}
-    ["access"!~"${blockedAccessPattern}"]
-    ["foot"!~"${blockedAccessPattern}"]
-    ["service"!~"${blockedServicePattern}"]
-    ["area"!~"^yes$"]
     (around:${roundedRadiusM},${center.lat},${center.lng});
 );
 out body geom;
@@ -127,6 +123,19 @@ function isValidCoordinate(point: Coordinate): boolean {
   );
 }
 
+function isSpawnSafeElement(element: OverpassElement): boolean {
+  const highway = element.tags?.highway;
+  if (!highway) return false;
+
+  if (new RegExp(blockedHighwayPattern).test(highway)) return false;
+  if (blockedAccessValues.has(element.tags?.access ?? "")) return false;
+  if (blockedAccessValues.has(element.tags?.foot ?? "")) return false;
+  if (blockedServiceValues.has(element.tags?.service ?? "")) return false;
+  if (element.tags?.area === "yes") return false;
+
+  return true;
+}
+
 export function parseWalkableCandidates(
   data: OverpassResponse,
   center: Coordinate,
@@ -140,6 +149,7 @@ export function parseWalkableCandidates(
     if (element.type !== "way" || !element.geometry || element.geometry.length < 2) {
       continue;
     }
+    if (!isSpawnSafeElement(element)) continue;
 
     for (let index = 1; index < element.geometry.length; index += 1) {
       const start = normalizeCoordinate(element.geometry[index - 1]);

@@ -23,8 +23,8 @@ describe("walkable candidates", () => {
     expect(query).toContain("residential");
     expect(query).not.toContain("motorway");
     expect(query).not.toContain("trunk");
-    expect(query).toContain('"access"!~"^(private|no)$"');
-    expect(query).toContain('"foot"!~"^(private|no)$"');
+    expect(query).not.toContain('"access"!~');
+    expect(query).not.toContain('"foot"!~');
   });
 
   it("can broaden to public roads without allowing major unsafe roads", () => {
@@ -37,8 +37,20 @@ describe("walkable candidates", () => {
     expect(query).toContain('["highway"]');
     expect(query).toContain("motorway");
     expect(query).toContain("primary");
-    expect(query).toContain('"access"!~"^(private|no)$"');
+    expect(query).not.toContain('"access"!~');
     expect(query).not.toContain('"highway"~"^(footway');
+  });
+
+  it("can query all roads for the debug overlay", () => {
+    const query = buildWalkableOverpassQuery(
+      { lat: 57.78, lng: 14.16 },
+      1000,
+      "debug-all-roads",
+    );
+
+    expect(query).toContain('["highway"]');
+    expect(query).not.toContain('"highway"!~');
+    expect(query).not.toContain('"access"!~');
   });
 
   it("samples points from Overpass way geometry", () => {
@@ -48,6 +60,7 @@ describe("walkable candidates", () => {
           {
             type: "way",
             id: 1,
+            tags: { highway: "footway" },
             geometry: [
               { lat: 57.78, lon: 14.16 },
               { lat: 57.781, lon: 14.16 },
@@ -101,6 +114,7 @@ describe("walkable candidates", () => {
           {
             type: "way",
             id: 7,
+            tags: { highway: "residential" },
             geometry: [
               { lat: 57.78, lon: 14.16 },
               { lat: 57.7805, lon: 14.1605 },
@@ -115,6 +129,48 @@ describe("walkable candidates", () => {
     expect(candidates[0]).toEqual({ lat: 57.78, lng: 14.16 });
   });
 
+  it("filters unsafe road types and private access in the parser", () => {
+    const candidates = parseWalkableCandidates(
+      {
+        elements: [
+          {
+            type: "way",
+            id: 1,
+            tags: { highway: "motorway" },
+            geometry: [
+              { lat: 57.78, lon: 14.16 },
+              { lat: 57.781, lon: 14.16 },
+            ],
+          },
+          {
+            type: "way",
+            id: 2,
+            tags: { highway: "service", service: "driveway" },
+            geometry: [
+              { lat: 57.78, lon: 14.161 },
+              { lat: 57.781, lon: 14.161 },
+            ],
+          },
+          {
+            type: "way",
+            id: 3,
+            tags: { highway: "residential" },
+            geometry: [
+              { lat: 57.78, lon: 14.162 },
+              { lat: 57.781, lon: 14.162 },
+            ],
+          },
+        ],
+      },
+      { lat: 57.78, lng: 14.16 },
+      500,
+    );
+
+    expect(candidates).toContainEqual({ lat: 57.78, lng: 14.162 });
+    expect(candidates).not.toContainEqual({ lat: 57.78, lng: 14.16 });
+    expect(candidates).not.toContainEqual({ lat: 57.78, lng: 14.161 });
+  });
+
   it("prioritizes nearby candidates before distant ones", () => {
     const candidates = parseWalkableCandidates(
       {
@@ -122,6 +178,7 @@ describe("walkable candidates", () => {
           {
             type: "way",
             id: 1,
+            tags: { highway: "residential" },
             geometry: [
               { lat: 57.82, lon: 14.16 },
               { lat: 57.821, lon: 14.16 },
@@ -130,6 +187,7 @@ describe("walkable candidates", () => {
           {
             type: "way",
             id: 2,
+            tags: { highway: "residential" },
             geometry: [
               { lat: 57.78, lon: 14.16 },
               { lat: 57.781, lon: 14.16 },

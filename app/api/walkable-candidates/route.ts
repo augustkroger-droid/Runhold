@@ -76,6 +76,9 @@ export async function GET(request: Request) {
   const debugPaths = debugRoadResults.flatMap((data) =>
     data ? parseWalkablePaths(data, center, radiusM) : [],
   );
+  const debugCandidates = debugRoadResults.flatMap((data) =>
+    data ? parseWalkableCandidates(data, center, radiusM) : [],
+  );
 
   for (const queryRadiusM of queryRadiiM) {
     for (const queryMode of queryModes) {
@@ -102,5 +105,14 @@ export async function GET(request: Request) {
     }
   }
 
-  return Response.json({ candidates: [], paths: [], radiusM, source: "overpass-empty" });
+  if (debugCandidates.length > 0) {
+    return Response.json({
+      candidates: debugCandidates,
+      paths: debugPaths,
+      radiusM,
+      source: "openstreetmap-overpass-debug-safe",
+    });
+  }
+
+  return Response.json({ candidates: [], paths: debugPaths, radiusM, source: "overpass-empty" });
 }

@@ -119,6 +119,11 @@ async function fetchDirectWalkableCandidates({
   const debugPaths = debugRoadResults.flatMap((data) =>
     data ? parseWalkablePaths(data, center, radiusM) : [],
   );
+  const debugCandidates = cleanWalkableCandidates(
+    debugRoadResults.flatMap((data) =>
+      data ? parseWalkableCandidates(data, center, radiusM) : [],
+    ),
+  );
 
   for (const queryRadiusM of queryRadiiM) {
     for (const queryMode of directOverpassModes) {
@@ -151,7 +156,21 @@ async function fetchDirectWalkableCandidates({
     }
   }
 
-  return { candidates: [], paths: [], source: "direct-overpass-empty", radiusM };
+  if (debugCandidates.length > 0) {
+    return {
+      candidates: debugCandidates,
+      paths: cleanWalkablePaths(debugPaths),
+      source: "direct-overpass-debug-safe",
+      radiusM,
+    };
+  }
+
+  return {
+    candidates: [],
+    paths: cleanWalkablePaths(debugPaths),
+    source: "direct-overpass-empty",
+    radiusM,
+  };
 }
 
 async function fetchWalkableCandidates({
@@ -282,10 +301,7 @@ export function useMapObjects() {
         visibleCandidates.candidates,
         widerCandidates.candidates,
       );
-      const nextWalkablePaths = mergeWalkablePaths(
-        visibleCandidates.paths,
-        [],
-      );
+      const nextWalkablePaths = mergeWalkablePaths(visibleCandidates.paths, []);
       setWalkablePaths(nextWalkablePaths);
 
       if (walkableCandidates.length === 0) {

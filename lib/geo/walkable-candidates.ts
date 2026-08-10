@@ -46,6 +46,7 @@ const blockedHighwayPattern =
 const blockedAccessValues = new Set(["private", "no"]);
 const blockedServiceValues = new Set(["driveway", "parking_aisle"]);
 const sampleSpacingM = 90;
+const nearestCandidateReserve = 48;
 
 export function boundingBoxForRadius(center: Coordinate, radiusM: number) {
   const latDelta = radiusM / 111_320;
@@ -173,14 +174,27 @@ export function parseWalkableCandidates(
     }
   }
 
-  return candidates
+  const sortedCandidates = candidates
     .map((point) => ({
       point,
       distanceM: haversineDistanceMeters(center, point),
     }))
-    .sort((left, right) => left.distanceM - right.distanceM)
-    .slice(0, maxCandidates)
-    .map(({ point }) => point);
+    .sort((left, right) => left.distanceM - right.distanceM);
+
+  if (sortedCandidates.length <= maxCandidates) {
+    return sortedCandidates.map(({ point }) => point);
+  }
+
+  const reservedCount = Math.min(nearestCandidateReserve, maxCandidates);
+  const reserved = sortedCandidates.slice(0, reservedCount);
+  const spreadSource = sortedCandidates.slice(reservedCount);
+  const spreadCount = maxCandidates - reserved.length;
+  const step = spreadSource.length / spreadCount;
+  const spread = Array.from({ length: spreadCount }, (_, index) => {
+    return spreadSource[Math.floor(index * step)];
+  }).filter((candidate): candidate is (typeof sortedCandidates)[number] => Boolean(candidate));
+
+  return [...reserved, ...spread].map(({ point }) => point);
 }
 
 export function parseWalkablePaths(

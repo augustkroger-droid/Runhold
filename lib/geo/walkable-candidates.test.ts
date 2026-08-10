@@ -202,4 +202,36 @@ describe("walkable candidates", () => {
 
     expect(candidates[0]).toEqual({ lat: 57.78, lng: 14.16 });
   });
+
+  it("keeps candidates across the full scan radius when dense roads are nearby", () => {
+    const center = { lat: 57.78, lng: 14.16 };
+    const nearWays = Array.from({ length: 80 }, (_, index) => ({
+      type: "way",
+      id: index + 1,
+      tags: { highway: "residential" },
+      geometry: [
+        { lat: 57.78 + index * 0.00001, lon: 14.16 },
+        { lat: 57.78 + index * 0.00001, lon: 14.1605 },
+      ],
+    }));
+    const farWays = Array.from({ length: 20 }, (_, index) => ({
+      type: "way",
+      id: index + 100,
+      tags: { highway: "residential" },
+      geometry: [
+        { lat: 57.795 + index * 0.00001, lon: 14.16 },
+        { lat: 57.795 + index * 0.00001, lon: 14.1605 },
+      ],
+    }));
+
+    const candidates = parseWalkableCandidates(
+      { elements: [...nearWays, ...farWays] },
+      center,
+      2500,
+      60,
+    );
+
+    expect(candidates[0]).toEqual(center);
+    expect(candidates.some((candidate) => candidate.lat > 57.794)).toBe(true);
+  });
 });

@@ -43,7 +43,7 @@ import { itemName, resourceName } from "@/lib/i18n";
 
 const DEFAULT_MAP_CENTER: Coordinate = { lat: 57.7815, lng: 14.1562 };
 const MAP_CENTER_STORAGE_KEY = "runhold.expedition.mapCenter";
-const AUTO_SCAN_INTERVAL_MS = 90_000;
+const AUTO_SCAN_INTERVAL_MS = 60 * 60 * 1000;
 const routeDistanceOptionsM = [1000, 2000, 3000, 5000] as const;
 const routeFocusOptions: RouteFocus[] = ["balanced", "wood", "stone", "food", "chest"];
 

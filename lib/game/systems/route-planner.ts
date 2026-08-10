@@ -136,14 +136,21 @@ export function createSuggestedRouteDraft({
   objects,
   focus,
   targetDistanceM,
+  selectedObjectIds = new Set(),
 }: {
   start: Coordinate;
   objects: readonly PlayerMapObject[];
   focus: RouteFocus;
   targetDistanceM: number;
+  selectedObjectIds?: ReadonlySet<string>;
 }): PlannedRouteDraft {
+  const requiredStops = objects
+    .filter((object) => selectedObjectIds.has(object.id))
+    .map((object) => toRouteStop(object));
+  const requiredIds = new Set(requiredStops.map((stop) => stop.objectId));
   const candidates = objects
     .filter((object) => {
+      if (requiredIds.has(object.id)) return false;
       if (focus === "balanced") return true;
       if (focus === "chest") return object.objectKind === "chest";
       return object.resourceId === focus;
@@ -155,7 +162,7 @@ export function createSuggestedRouteDraft({
     }))
     .sort((left, right) => right.value / right.distanceM - left.value / left.distanceM);
 
-  const selected: PlannedRouteStop[] = [];
+  const selected: PlannedRouteStop[] = [...requiredStops];
   const softBudgetM = Math.max(500, targetDistanceM * 1.08);
 
   for (const candidate of candidates) {

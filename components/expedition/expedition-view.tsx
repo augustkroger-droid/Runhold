@@ -9,7 +9,6 @@ import {
   Route,
   Sparkles,
   X,
-  MousePointer2,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type GeoReading, useGeolocationWatch } from "@/hooks/use-geolocation-watch";
@@ -30,7 +29,6 @@ import {
 } from "@/lib/game/systems/expedition";
 import {
   createApproximateRoutedPath,
-  createManualRouteDraft,
   createSuggestedRouteDraft,
   type PlannedRouteDraft,
   type RouteFocus,
@@ -219,7 +217,7 @@ export function ExpeditionView({
   const [routePoints, setRoutePoints] = useState<ExpeditionRoutePoint[]>([]);
   const [routeFocus, setRouteFocus] = useState<RouteFocus>("balanced");
   const [routeTargetDistanceM, setRouteTargetDistanceM] = useState<number>(2000);
-  const [manualRouteMode, setManualRouteMode] = useState(false);
+  const [showRoutePlanner, setShowRoutePlanner] = useState(false);
   const [selectedRouteObjectIds, setSelectedRouteObjectIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -552,7 +550,7 @@ export function ExpeditionView({
     [fetchRoutedPath, t],
   );
 
-  const suggestRoute = useCallback(async () => {
+  const planExpeditionRoute = useCallback(async () => {
     if (!current) {
       setRoutePlanError(t("expedition.needPosition"));
       return;
@@ -568,30 +566,23 @@ export function ExpeditionView({
       objects: mapObjects,
       focus: routeFocus,
       targetDistanceM: routeTargetDistanceM,
-    });
-
-    await planRoute(draft);
-  }, [current, mapObjects, planRoute, routeFocus, routeTargetDistanceM, scanActive, t]);
-
-  const planSelectedRoute = useCallback(async () => {
-    if (!current) {
-      setRoutePlanError(t("expedition.needPosition"));
-      return;
-    }
-
-    const draft = createManualRouteDraft({
-      start: current,
-      objects: mapObjects,
       selectedObjectIds: selectedRouteObjectIds,
     });
 
     await planRoute(draft);
-  }, [current, mapObjects, planRoute, selectedRouteObjectIds, t]);
+  }, [
+    current,
+    mapObjects,
+    planRoute,
+    routeFocus,
+    routeTargetDistanceM,
+    scanActive,
+    selectedRouteObjectIds,
+    t,
+  ]);
 
   const toggleRouteObject = useCallback(
     (object: PlayerMapObject) => {
-      if (!manualRouteMode) return;
-
       setRoutePlanError(null);
       setPlannedRoute(null);
       setSelectedRouteObjectIds((currentSelection) => {
@@ -606,7 +597,7 @@ export function ExpeditionView({
         return nextSelection;
       });
     },
-    [manualRouteMode],
+    [],
   );
 
   const clearPlannedRoute = useCallback(() => {
@@ -679,6 +670,7 @@ export function ExpeditionView({
     try {
       const expedition = await createExpedition();
       expeditionIdRef.current = expedition.id;
+      setShowRoutePlanner(false);
       setStatus("active");
       setStart(current);
       setDistanceM(0);
@@ -803,7 +795,7 @@ export function ExpeditionView({
     setSelectedRouteObjectIds(new Set());
     setPlannedRoute(null);
     setRoutePlanError(null);
-    setManualRouteMode(false);
+    setShowRoutePlanner(false);
     lastReadingRef.current = null;
     lastDisplayPositionRef.current = null;
     distanceRef.current = 0;
@@ -1178,6 +1170,221 @@ export function ExpeditionView({
         </div>
       ) : null}
 
+      {showRoutePlanner ? (
+        <section className="fixed inset-0 z-[1350] overflow-hidden bg-[#071018]">
+          <div className="absolute inset-x-3 top-[max(0.75rem,env(safe-area-inset-top))] z-[1450] flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-[#43d9ad]">
+                {t("expedition.title")}
+              </p>
+              <h2 className="text-2xl font-black text-white">
+                {t("routePlanner.title")}
+              </h2>
+            </div>
+            <button
+              type="button"
+              className="grid size-11 place-items-center rounded-full border border-white/10 bg-[#101820]/92 text-white shadow-2xl backdrop-blur"
+              onClick={() => setShowRoutePlanner(false)}
+              aria-label={t("routePlanner.close")}
+              title={t("routePlanner.close")}
+            >
+              <X aria-hidden="true" size={20} />
+            </button>
+          </div>
+
+          <div className="h-dvh w-full">
+            <MapLoader
+              start={start ?? current ?? mapCenter}
+              destination={null}
+              current={current}
+              canSelectDestination={false}
+              showStartRadius={false}
+              scanRadiusM={scanActive ? scannerRadiusM : null}
+              mapObjects={scanActive ? mapObjects : []}
+              selectedMapObjectIds={plannedRouteObjectIds}
+              routePoints={lastResult?.routePoints ?? routePoints}
+              plannedRoutePoints={plannedRoutePoints}
+              centerLabel={t("expedition.centerMap")}
+              centerControlClassName="bottom-[23rem] right-4"
+              onViewChange={saveViewedMapCenter}
+              onMapObjectSelect={toggleRouteObject}
+              onDestinationSelect={() => undefined}
+            />
+          </div>
+
+          <div className="absolute inset-x-3 bottom-[max(0.8rem,env(safe-area-inset-bottom))] z-[1450] max-h-[52dvh] overflow-y-auto rounded-lg border border-white/10 bg-[#101820]/94 p-4 shadow-2xl backdrop-blur">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-black text-white">
+                  {t("routePlanner.selected", { count: selectedRouteObjectIds.size })}
+                </p>
+                <p className="mt-1 text-xs font-bold text-[#aeb9b6]">
+                  {t("routePlanner.selectedHint")}
+                </p>
+              </div>
+              {selectedRouteObjectIds.size > 0 || plannedRoute ? (
+                <button
+                  type="button"
+                  className="min-h-10 rounded-md bg-[#22303b] px-3 text-sm font-black text-white"
+                  onClick={clearPlannedRoute}
+                >
+                  {t("routePlanner.clearSelection")}
+                </button>
+              ) : null}
+            </div>
+
+            <div className="mt-4 grid gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.12em] text-[#aeb9b6]">
+                  {t("routePlanner.focus")}
+                </p>
+                <div className="mt-2 grid grid-cols-5 gap-2">
+                  {routeFocusOptions.map((focus) => (
+                    <button
+                      key={focus}
+                      type="button"
+                      className={`min-h-11 rounded-md px-2 text-sm font-black ${
+                        routeFocus === focus
+                          ? "bg-[#43d9ad] text-[#07110d]"
+                          : "bg-[#18232d] text-[#d7e1dd]"
+                      }`}
+                      onClick={() => {
+                        setRouteFocus(focus);
+                        setRoutePlanError(null);
+                      }}
+                      title={routeFocusLabel(language, focus)}
+                    >
+                      {focus === "balanced"
+                        ? "*"
+                        : focus === "chest"
+                          ? "?"
+                          : RESOURCE_DEFINITIONS.find((resource) => resource.id === focus)
+                              ?.icon}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.12em] text-[#aeb9b6]">
+                  {t("routePlanner.distance")}
+                </p>
+                <div className="mt-2 grid grid-cols-4 gap-2">
+                  {routeDistanceOptionsM.map((distanceMOption) => (
+                    <button
+                      key={distanceMOption}
+                      type="button"
+                      className={`min-h-10 rounded-md px-2 text-sm font-black ${
+                        routeTargetDistanceM === distanceMOption
+                          ? "bg-[#f5b84b] text-[#211505]"
+                          : "bg-[#18232d] text-[#d7e1dd]"
+                      }`}
+                      onClick={() => {
+                        setRouteTargetDistanceM(distanceMOption);
+                        setRoutePlanError(null);
+                      }}
+                    >
+                      {formatDistance(distanceMOption)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  className="flex min-h-12 items-center justify-center gap-2 rounded-md border border-[#43d9ad]/50 bg-[#16342d] px-3 font-black text-[#d7fff0] disabled:cursor-wait disabled:opacity-60"
+                  onClick={scan}
+                  disabled={scanning}
+                >
+                  <Radar aria-hidden="true" size={18} />
+                  {scanning ? t("expedition.scanning") : t("expedition.scan")}
+                </button>
+                <button
+                  type="button"
+                  className="flex min-h-12 items-center justify-center gap-2 rounded-md bg-[#315f36] px-3 font-black text-white disabled:cursor-wait disabled:opacity-60"
+                  onClick={planExpeditionRoute}
+                  disabled={routePlanning || scanning}
+                >
+                  <Sparkles aria-hidden="true" size={18} />
+                  {routePlanning ? t("common.loading") : t("routePlanner.plan")}
+                </button>
+              </div>
+
+              {plannedRoute ? (
+                <div className="grid gap-2 rounded-md bg-[#071018] p-3">
+                  <div className="grid grid-cols-3 gap-2 text-sm">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[0.12em] text-[#aeb9b6]">
+                        {t("expedition.distance")}
+                      </p>
+                      <p className="mt-1 font-black text-white">
+                        {formatDistance(plannedRoute.path.distanceM)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[0.12em] text-[#aeb9b6]">
+                        {t("expedition.time")}
+                      </p>
+                      <p className="mt-1 font-black text-white">
+                        {formatRouteDuration(plannedRoute.path.durationSeconds)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[0.12em] text-[#aeb9b6]">
+                        {routeFocusLabel(language, routeFocus)}
+                      </p>
+                      <p className="mt-1 font-black text-white">
+                        {t("routePlanner.stops", {
+                          count: plannedRoute.draft.stops.length,
+                        })}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <span className="rounded-full bg-[#22303b] px-3 py-1 text-xs font-black text-[#d7e1dd]">
+                      {plannedRoute.path.source === "osrm-foot"
+                        ? t("routePlanner.osrm")
+                        : t("routePlanner.approximate")}
+                    </span>
+                    {Object.entries(plannedRoute.draft.resourceHaul).map(
+                      ([resourceId, quantity]) => (
+                        <span
+                          key={resourceId}
+                          className="rounded-full bg-[#14342d] px-3 py-1 text-xs font-black text-[#d7fff0]"
+                        >
+                          +{quantity} {resourceName(language, resourceId)}
+                        </span>
+                      ),
+                    )}
+                    {plannedRoute.draft.chestCount > 0 ? (
+                      <span className="rounded-full bg-[#2b2414] px-3 py-1 text-xs font-black text-[#ffe5ad]">
+                        {plannedRoute.draft.chestCount} {t("routePlanner.chest")}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+
+              {routePlanError ? (
+                <p className="text-sm font-bold text-[#ffd6a1]">{routePlanError}</p>
+              ) : null}
+
+              <button
+                type="button"
+                className="flex min-h-14 w-full items-center justify-center gap-2 rounded-md bg-[#43d9ad] px-4 font-black text-[#07110d] disabled:cursor-wait disabled:opacity-60"
+                onClick={startExpedition}
+                disabled={starting}
+              >
+                <Play aria-hidden="true" size={21} />
+                {t("expedition.start")}
+              </button>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
       <div className="h-[52dvh] min-h-[420px] overflow-hidden rounded-lg border border-white/10 bg-[#18232d] shadow-2xl">
         <MapLoader
           start={start ?? current ?? mapCenter}
@@ -1192,7 +1399,6 @@ export function ExpeditionView({
           plannedRoutePoints={plannedRoutePoints}
           centerLabel={t("expedition.centerMap")}
           onViewChange={saveViewedMapCenter}
-          onMapObjectSelect={manualRouteMode ? toggleRouteObject : undefined}
           onDestinationSelect={() => undefined}
         />
       </div>
@@ -1263,11 +1469,10 @@ export function ExpeditionView({
               <button
                 type="button"
                 className="flex min-h-14 w-full items-center justify-center gap-2 rounded-md bg-[#43d9ad] px-4 font-black text-[#07110d]"
-                onClick={startExpedition}
-                disabled={starting}
+                onClick={() => setShowRoutePlanner(true)}
               >
-                <Play aria-hidden="true" size={21} />
-                {t("expedition.start")}
+                <Route aria-hidden="true" size={21} />
+                {t("expedition.plan")}
               </button>
             </>
           ) : null}
@@ -1280,184 +1485,6 @@ export function ExpeditionView({
             >
               {t("expedition.new")}
             </button>
-          ) : null}
-        </div>
-      </div>
-
-      <div className="rounded-lg border border-white/10 bg-[#18232d] p-4">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 font-black text-white">
-            <Route aria-hidden="true" size={19} />
-            {t("routePlanner.title")}
-          </div>
-          {plannedRoute ? (
-            <button
-              type="button"
-              className="grid size-9 place-items-center rounded-md bg-[#22303b] text-white"
-              onClick={clearPlannedRoute}
-              aria-label={t("routePlanner.clear")}
-              title={t("routePlanner.clear")}
-            >
-              <X aria-hidden="true" size={18} />
-            </button>
-          ) : null}
-        </div>
-
-        <div className="mt-3 grid gap-3">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.12em] text-[#aeb9b6]">
-              {t("routePlanner.focus")}
-            </p>
-            <div className="mt-2 grid grid-cols-5 gap-2">
-              {routeFocusOptions.map((focus) => (
-                <button
-                  key={focus}
-                  type="button"
-                  className={`min-h-10 rounded-md px-2 text-sm font-black ${
-                    routeFocus === focus
-                      ? "bg-[#43d9ad] text-[#07110d]"
-                      : "bg-[#101820] text-[#d7e1dd]"
-                  }`}
-                  onClick={() => {
-                    setRouteFocus(focus);
-                    setRoutePlanError(null);
-                  }}
-                >
-                  {focus === "balanced"
-                    ? "*"
-                    : focus === "chest"
-                      ? "?"
-                      : RESOURCE_DEFINITIONS.find((resource) => resource.id === focus)
-                          ?.icon}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.12em] text-[#aeb9b6]">
-              {t("routePlanner.distance")}
-            </p>
-            <div className="mt-2 grid grid-cols-4 gap-2">
-              {routeDistanceOptionsM.map((distanceMOption) => (
-                <button
-                  key={distanceMOption}
-                  type="button"
-                  className={`min-h-10 rounded-md px-2 text-sm font-black ${
-                    routeTargetDistanceM === distanceMOption
-                      ? "bg-[#f5b84b] text-[#211505]"
-                      : "bg-[#101820] text-[#d7e1dd]"
-                  }`}
-                  onClick={() => {
-                    setRouteTargetDistanceM(distanceMOption);
-                    setRoutePlanError(null);
-                  }}
-                >
-                  {formatDistance(distanceMOption)}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              className="flex min-h-12 items-center justify-center gap-2 rounded-md bg-[#315f36] px-3 font-black text-white disabled:cursor-wait disabled:opacity-60"
-              onClick={suggestRoute}
-              disabled={routePlanning || scanning}
-            >
-              <Sparkles aria-hidden="true" size={18} />
-              {t("routePlanner.suggest")}
-            </button>
-            <button
-              type="button"
-              className={`flex min-h-12 items-center justify-center gap-2 rounded-md px-3 font-black ${
-                manualRouteMode
-                  ? "bg-[#f5b84b] text-[#211505]"
-                  : "bg-[#22303b] text-white"
-              }`}
-              onClick={() => {
-                setManualRouteMode((enabled) => !enabled);
-                setRoutePlanError(null);
-              }}
-            >
-              <MousePointer2 aria-hidden="true" size={18} />
-              {t("routePlanner.manual")}
-            </button>
-          </div>
-
-          {manualRouteMode ? (
-            <div className="grid grid-cols-[1fr_auto] gap-2">
-              <div className="rounded-md bg-[#101820] px-3 py-3 text-sm font-black text-[#d7e1dd]">
-                {t("routePlanner.selected", { count: selectedRouteObjectIds.size })}
-              </div>
-              <button
-                type="button"
-                className="min-h-11 rounded-md bg-[#43d9ad] px-3 font-black text-[#07110d] disabled:cursor-not-allowed disabled:opacity-50"
-                onClick={planSelectedRoute}
-                disabled={routePlanning || selectedRouteObjectIds.size === 0}
-              >
-                {t("routePlanner.planSelected")}
-              </button>
-            </div>
-          ) : null}
-
-          {plannedRoute ? (
-            <div className="grid gap-2 rounded-md bg-[#101820] p-3">
-              <div className="grid grid-cols-3 gap-2 text-sm">
-                <div>
-                  <p className="text-xs font-black uppercase tracking-[0.12em] text-[#aeb9b6]">
-                    {t("expedition.distance")}
-                  </p>
-                  <p className="mt-1 font-black text-white">
-                    {formatDistance(plannedRoute.path.distanceM)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs font-black uppercase tracking-[0.12em] text-[#aeb9b6]">
-                    {t("expedition.time")}
-                  </p>
-                  <p className="mt-1 font-black text-white">
-                    {formatRouteDuration(plannedRoute.path.durationSeconds)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs font-black uppercase tracking-[0.12em] text-[#aeb9b6]">
-                    {routeFocusLabel(language, routeFocus)}
-                  </p>
-                  <p className="mt-1 font-black text-white">
-                    {t("routePlanner.stops", { count: plannedRoute.draft.stops.length })}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                <span className="rounded-full bg-[#22303b] px-3 py-1 text-xs font-black text-[#d7e1dd]">
-                  {plannedRoute.path.source === "osrm-foot"
-                    ? t("routePlanner.osrm")
-                    : t("routePlanner.approximate")}
-                </span>
-                {Object.entries(plannedRoute.draft.resourceHaul).map(
-                  ([resourceId, quantity]) => (
-                    <span
-                      key={resourceId}
-                      className="rounded-full bg-[#14342d] px-3 py-1 text-xs font-black text-[#d7fff0]"
-                    >
-                      +{quantity} {resourceName(language, resourceId)}
-                    </span>
-                  ),
-                )}
-                {plannedRoute.draft.chestCount > 0 ? (
-                  <span className="rounded-full bg-[#2b2414] px-3 py-1 text-xs font-black text-[#ffe5ad]">
-                    {plannedRoute.draft.chestCount} {t("routePlanner.chest")}
-                  </span>
-                ) : null}
-              </div>
-            </div>
-          ) : null}
-
-          {routePlanError ? (
-            <p className="text-sm font-bold text-[#ffd6a1]">{routePlanError}</p>
           ) : null}
         </div>
       </div>

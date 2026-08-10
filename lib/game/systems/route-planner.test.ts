@@ -55,4 +55,23 @@ describe("route planner", () => {
     expect(draft.stops[0].objectId).toBe("near");
     expect(draft.stops[1].objectId).toBe("far");
   });
+
+  it("keeps picked stops and fills the route with focused finds", () => {
+    const draft = createSuggestedRouteDraft({
+      start,
+      objects: [
+        object("picked-stone", "stone", 1, 0.001),
+        object("wood-1", "wood", 4, 0.0012),
+        object("wood-2", "wood", 5, 0.0014),
+      ],
+      focus: "wood",
+      targetDistanceM: 1200,
+      selectedObjectIds: new Set(["picked-stone"]),
+    });
+
+    expect(draft.stops.map((stop) => stop.objectId)).toContain("picked-stone");
+    expect(draft.stops.map((stop) => stop.objectId)).toContain("wood-1");
+    expect(draft.resourceHaul.stone).toBe(1);
+    expect(draft.resourceHaul.wood).toBeGreaterThan(0);
+  });
 });

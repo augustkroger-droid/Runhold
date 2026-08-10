@@ -45,8 +45,8 @@ const blockedHighwayPattern =
   "^(motorway|motorway_link|trunk|trunk_link|primary|primary_link|construction|raceway)$";
 const blockedAccessValues = new Set(["private", "no"]);
 const blockedServiceValues = new Set(["driveway", "parking_aisle"]);
-const sampleSpacingM = 90;
-const nearestCandidateReserve = 48;
+const sampleSpacingM = 70;
+const nearestCandidateReserve = 60;
 
 export function boundingBoxForRadius(center: Coordinate, radiusM: number) {
   const latDelta = radiusM / 111_320;
@@ -141,7 +141,7 @@ export function parseWalkableCandidates(
   data: OverpassResponse,
   center: Coordinate,
   radiusM: number,
-  maxCandidates = 360,
+  maxCandidates = 900,
 ): WalkableCandidate[] {
   const candidates: WalkableCandidate[] = [];
   const seen = new Set<string>();
@@ -185,7 +185,10 @@ export function parseWalkableCandidates(
     return sortedCandidates.map(({ point }) => point);
   }
 
-  const reservedCount = Math.min(nearestCandidateReserve, maxCandidates);
+  const reservedCount = Math.min(
+    nearestCandidateReserve,
+    Math.max(1, Math.floor(maxCandidates * 0.4)),
+  );
   const reserved = sortedCandidates.slice(0, reservedCount);
   const spreadSource = sortedCandidates.slice(reservedCount);
   const spreadCount = maxCandidates - reserved.length;

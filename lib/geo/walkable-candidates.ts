@@ -25,7 +25,7 @@ type OverpassGeometryPoint = {
   lng?: number;
 };
 
-export type WalkableOverpassMode = "strict" | "public-road";
+export type WalkableOverpassMode = "strict" | "public-road" | "debug-all-roads";
 
 const allowedHighways = [
   "footway",
@@ -69,7 +69,9 @@ export function buildWalkableOverpassQuery(
   const highwayFilter =
     mode === "strict"
       ? `["highway"~"^(${highways})$"]`
-      : `["highway"]["highway"!~"${blockedHighwayPattern}"]`;
+      : mode === "public-road"
+        ? `["highway"]["highway"!~"${blockedHighwayPattern}"]`
+        : `["highway"]`;
 
   return `
 [out:json][timeout:6];

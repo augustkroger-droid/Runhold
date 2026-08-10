@@ -65,6 +65,17 @@ export async function GET(request: Request) {
     new Set([radiusM, Math.min(radiusM, 2000), Math.min(radiusM, 1200)]),
   ).filter((nextRadiusM) => nextRadiusM >= 250 && nextRadiusM <= radiusM);
   const queryModes = ["strict", "public-road"] as const;
+  const debugRoadResults = await Promise.all(
+    overpassUrls.map((overpassUrl) =>
+      fetchOverpassData(
+        overpassUrl,
+        buildWalkableOverpassQuery(center, radiusM, "debug-all-roads"),
+      ),
+    ),
+  );
+  const debugPaths = debugRoadResults.flatMap((data) =>
+    data ? parseWalkablePaths(data, center, radiusM) : [],
+  );
 
   for (const queryRadiusM of queryRadiiM) {
     for (const queryMode of queryModes) {
@@ -82,7 +93,7 @@ export async function GET(request: Request) {
         if (candidates.length > 0) {
           return Response.json({
             candidates,
-            paths,
+            paths: debugPaths.length > 0 ? debugPaths : paths,
             radiusM: queryRadiusM,
             source: `openstreetmap-overpass-${queryMode}`,
           });

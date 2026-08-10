@@ -108,6 +108,17 @@ async function fetchDirectWalkableCandidates({
   const queryRadiiM = Array.from(
     new Set([radiusM, Math.min(radiusM, 2000), Math.min(radiusM, 1200)]),
   ).filter((nextRadiusM) => nextRadiusM >= 250 && nextRadiusM <= radiusM);
+  const debugRoadResults = await Promise.all(
+    directOverpassUrls.map((overpassUrl) =>
+      fetchDirectOverpassData(
+        overpassUrl,
+        buildWalkableOverpassQuery(center, radiusM, "debug-all-roads"),
+      ),
+    ),
+  );
+  const debugPaths = debugRoadResults.flatMap((data) =>
+    data ? parseWalkablePaths(data, center, radiusM) : [],
+  );
 
   for (const queryRadiusM of queryRadiiM) {
     for (const queryMode of directOverpassModes) {
@@ -129,7 +140,10 @@ async function fetchDirectWalkableCandidates({
 
         return {
           candidates,
-          paths: cleanWalkablePaths(parseWalkablePaths(data, center, queryRadiusM)),
+          paths:
+            debugPaths.length > 0
+              ? cleanWalkablePaths(debugPaths)
+              : cleanWalkablePaths(parseWalkablePaths(data, center, queryRadiusM)),
           source: `direct-overpass-${queryMode}`,
           radiusM: queryRadiusM,
         };
@@ -290,12 +304,15 @@ export function useMapObjects() {
         input_walkable_candidates: walkableCandidates,
       };
       let { data, error: scanError } = await supabase.rpc(
-        "scan_visible_walkable_map_objects",
+        "scan_player_map_objects",
         scanArgs,
       );
 
       if (scanError && scanError.code === "PGRST202") {
-        const fallbackResult = await supabase.rpc("scan_player_map_objects", scanArgs);
+        const fallbackResult = await supabase.rpc(
+          "scan_visible_walkable_map_objects",
+          scanArgs,
+        );
         data = fallbackResult.data;
         scanError = fallbackResult.error;
       }

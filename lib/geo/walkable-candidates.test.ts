@@ -107,6 +107,28 @@ describe("walkable candidates", () => {
     ]);
   });
 
+  it("does not extract unsafe path lines for the map overlay", () => {
+    const paths = parseWalkablePaths(
+      {
+        elements: [
+          {
+            type: "way",
+            id: 42,
+            tags: { highway: "footway", access: "private" },
+            geometry: [
+              { lat: 57.78, lon: 14.16 },
+              { lat: 57.781, lon: 14.16 },
+            ],
+          },
+        ],
+      },
+      { lat: 57.78, lng: 14.16 },
+      500,
+    );
+
+    expect(paths).toEqual([]);
+  });
+
   it("normalizes Overpass lon coordinates into internal lng coordinates", () => {
     const candidates = parseWalkableCandidates(
       {

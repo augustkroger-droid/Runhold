@@ -16,6 +16,7 @@ import {
 import type { Coordinate } from "@/lib/game/gps/position";
 import type { PlayerMapObject } from "@/lib/game/state/map-objects";
 import { RESOURCE_DEFINITIONS } from "@/lib/game/definitions/resources";
+import type { WalkablePath } from "@/lib/geo/walkable-candidates";
 
 const startIcon = L.divIcon({
   className: "",
@@ -37,6 +38,15 @@ const currentIcon = L.divIcon({
   iconSize: [24, 24],
   iconAnchor: [12, 12],
 });
+
+const highlightedWalkableHighways = new Set([
+  "footway",
+  "path",
+  "pedestrian",
+  "cycleway",
+  "steps",
+  "track",
+]);
 
 function mapObjectIcon(object: PlayerMapObject) {
   const resource = RESOURCE_DEFINITIONS.find(
@@ -147,6 +157,7 @@ export function MissionMap({
   showStartRadius,
   scanRadiusM,
   mapObjects = [],
+  walkablePaths = [],
   routePoints = [],
   centerLabel,
   centerControlClassName = "bottom-4 right-4",
@@ -160,6 +171,7 @@ export function MissionMap({
   showStartRadius: boolean;
   scanRadiusM?: number | null;
   mapObjects?: PlayerMapObject[];
+  walkablePaths?: WalkablePath[];
   routePoints?: Coordinate[];
   centerLabel: string;
   centerControlClassName?: string;
@@ -171,6 +183,16 @@ export function MissionMap({
   const routeLine = useMemo(
     () => routePoints.map((point) => [point.lat, point.lng] as [number, number]),
     [routePoints],
+  );
+  const walkableLines = useMemo(
+    () =>
+      walkablePaths
+        .filter((path) => highlightedWalkableHighways.has(path.highway))
+        .map((path) => ({
+          id: path.id,
+          positions: path.points.map((point) => [point.lat, point.lng] as [number, number]),
+        })),
+    [walkablePaths],
   );
 
   return (
@@ -220,6 +242,39 @@ export function MissionMap({
           pathOptions={{ color: "#f5b84b", fillColor: "#f5b84b", fillOpacity: 0.08 }}
         />
       ) : null}
+      {walkableLines.map((path) => (
+        <Polyline
+          key={`${path.id}-trail-shadow`}
+          positions={path.positions}
+          pathOptions={{
+            color: "#0b1a1c",
+            opacity: 0.62,
+            weight: 7,
+          }}
+        />
+      ))}
+      {walkableLines.map((path) => (
+        <Polyline
+          key={`${path.id}-trail`}
+          positions={path.positions}
+          pathOptions={{
+            color: "#61d8c1",
+            opacity: 0.78,
+            weight: 3,
+          }}
+        />
+      ))}
+      {walkableLines.map((path) => (
+        <Polyline
+          key={`${path.id}-trail-glint`}
+          positions={path.positions}
+          pathOptions={{
+            color: "#e4fff7",
+            opacity: 0.42,
+            weight: 1,
+          }}
+        />
+      ))}
       {mapObjects.map((object) => (
         <Marker
           key={object.id}

@@ -211,7 +211,8 @@ export function parseWalkablePaths(
       (element) =>
         element.type === "way" &&
         Array.isArray(element.geometry) &&
-        element.geometry.length >= 2,
+        element.geometry.length >= 2 &&
+        isSpawnSafeElement(element),
     )
     .map((element) => {
       const points = (element.geometry ?? []).flatMap((point) => {

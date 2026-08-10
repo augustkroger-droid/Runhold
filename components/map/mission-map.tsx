@@ -38,15 +38,16 @@ const currentIcon = L.divIcon({
   iconAnchor: [12, 12],
 });
 
-function mapObjectIcon(object: PlayerMapObject) {
+function mapObjectIcon(object: PlayerMapObject, selected: boolean) {
   const resource = RESOURCE_DEFINITIONS.find(
     (definition) => definition.id === object.resourceId,
   );
   const markerType = object.objectKind === "chest" ? "chest" : object.resourceId;
+  const selectedClassName = selected ? " runhold-map-object-selected" : "";
 
   return L.divIcon({
     className: "",
-    html: `<span class="runhold-map-object runhold-map-object-${markerType}">${object.objectKind === "chest" ? "?" : (resource?.icon ?? "?")}</span>`,
+    html: `<span class="runhold-map-object runhold-map-object-${markerType}${selectedClassName}">${object.objectKind === "chest" ? "?" : (resource?.icon ?? "?")}</span>`,
     iconSize: [30, 30],
     iconAnchor: [15, 15],
   });
@@ -147,10 +148,13 @@ export function MissionMap({
   showStartRadius,
   scanRadiusM,
   mapObjects = [],
+  selectedMapObjectIds,
   routePoints = [],
+  plannedRoutePoints = [],
   centerLabel,
   centerControlClassName = "bottom-4 right-4",
   onViewChange,
+  onMapObjectSelect,
   onDestinationSelect,
 }: {
   start: Coordinate;
@@ -160,10 +164,13 @@ export function MissionMap({
   showStartRadius: boolean;
   scanRadiusM?: number | null;
   mapObjects?: PlayerMapObject[];
+  selectedMapObjectIds?: ReadonlySet<string>;
   routePoints?: Coordinate[];
+  plannedRoutePoints?: Coordinate[];
   centerLabel: string;
   centerControlClassName?: string;
   onViewChange?: (center: Coordinate) => void;
+  onMapObjectSelect?: (object: PlayerMapObject) => void;
   onDestinationSelect: (point: Coordinate) => void;
 }) {
   const activeCenter = current ?? start;
@@ -171,6 +178,11 @@ export function MissionMap({
   const routeLine = useMemo(
     () => routePoints.map((point) => [point.lat, point.lng] as [number, number]),
     [routePoints],
+  );
+  const plannedRouteLine = useMemo(
+    () =>
+      plannedRoutePoints.map((point) => [point.lat, point.lng] as [number, number]),
+    [plannedRoutePoints],
   );
 
   return (
@@ -224,9 +236,28 @@ export function MissionMap({
         <Marker
           key={object.id}
           position={[object.position.lat, object.position.lng]}
-          icon={mapObjectIcon(object)}
+          icon={mapObjectIcon(object, Boolean(selectedMapObjectIds?.has(object.id)))}
+          eventHandlers={
+            onMapObjectSelect
+              ? {
+                  click: () => onMapObjectSelect(object),
+                }
+              : undefined
+          }
         />
       ))}
+      {plannedRouteLine.length > 1 ? (
+        <>
+          <Polyline
+            positions={plannedRouteLine}
+            pathOptions={{ color: "#101820", opacity: 0.6, weight: 8 }}
+          />
+          <Polyline
+            positions={plannedRouteLine}
+            pathOptions={{ color: "#f5b84b", opacity: 0.95, weight: 4 }}
+          />
+        </>
+      ) : null}
       {routeLine.length > 1 ? (
         <>
           <Polyline

@@ -1,6 +1,16 @@
 "use client";
 
-import { LocateFixed, Radar, Square, Footprints, Play } from "lucide-react";
+import {
+  LocateFixed,
+  Radar,
+  Square,
+  Footprints,
+  Play,
+  Route,
+  Sparkles,
+  X,
+  MousePointer2,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type GeoReading, useGeolocationWatch } from "@/hooks/use-geolocation-watch";
 import { useMapObjects } from "@/hooks/use-map-objects";
@@ -18,11 +28,28 @@ import {
   calculateExpeditionXp,
   calculateRouteDistanceMeters,
 } from "@/lib/game/systems/expedition";
+import {
+  createApproximateRoutedPath,
+  createManualRouteDraft,
+  createSuggestedRouteDraft,
+  type PlannedRouteDraft,
+  type RouteFocus,
+  type RoutedPath,
+} from "@/lib/game/systems/route-planner";
 import { MAP_OBJECT_CONFIG } from "@/lib/game/definitions/map-objects";
+import { RESOURCE_DEFINITIONS } from "@/lib/game/definitions/resources";
+import type { PlayerMapObject } from "@/lib/game/state/map-objects";
 import { itemName, resourceName } from "@/lib/i18n";
 
 const DEFAULT_MAP_CENTER: Coordinate = { lat: 57.7815, lng: 14.1562 };
 const MAP_CENTER_STORAGE_KEY = "runhold.expedition.mapCenter";
+const routeDistanceOptionsM = [1000, 2000, 3000, 5000] as const;
+const routeFocusOptions: RouteFocus[] = ["balanced", "wood", "stone", "food", "chest"];
+
+type PlannedRouteState = {
+  draft: PlannedRouteDraft;
+  path: RoutedPath;
+};
 
 function formatDistance(distanceM: number): string {
   if (distanceM >= 1000) {
@@ -52,6 +79,17 @@ function formatAverageSpeed(distanceM: number, durationSeconds: number): string 
   if (distanceM < 1 || durationSeconds <= 0) return "--";
 
   return `${((distanceM / 1000) / (durationSeconds / 3600)).toFixed(1)} km/h`;
+}
+
+function formatRouteDuration(seconds: number): string {
+  const minutes = Math.max(1, Math.round(seconds / 60));
+  return `${minutes} min`;
+}
+
+function routeFocusLabel(language: string, focus: RouteFocus): string {
+  if (focus === "balanced") return language === "en" ? "Balanced" : "Balanserat";
+  if (focus === "chest") return language === "en" ? "Chests" : "Kistor";
+  return resourceName(language === "en" ? "en" : "sv", focus);
 }
 
 function countTotalHaul(
@@ -177,6 +215,15 @@ export function ExpeditionView({
   const [currentHaul, setCurrentHaul] = useState<Record<string, number>>({});
   const [currentItemHaul, setCurrentItemHaul] = useState<Record<string, number>>({});
   const [routePoints, setRoutePoints] = useState<ExpeditionRoutePoint[]>([]);
+  const [routeFocus, setRouteFocus] = useState<RouteFocus>("balanced");
+  const [routeTargetDistanceM, setRouteTargetDistanceM] = useState<number>(2000);
+  const [manualRouteMode, setManualRouteMode] = useState(false);
+  const [selectedRouteObjectIds, setSelectedRouteObjectIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [plannedRoute, setPlannedRoute] = useState<PlannedRouteState | null>(null);
+  const [routePlanning, setRoutePlanning] = useState(false);
+  const [routePlanError, setRoutePlanError] = useState<string | null>(null);
 
   const lastReadingRef = useRef<Coordinate | null>(null);
   const lastDisplayPositionRef = useRef<Coordinate | null>(null);
@@ -205,6 +252,16 @@ export function ExpeditionView({
     [distanceM, durationSeconds],
   );
   const currentPace = formatPace(distanceM, durationSeconds);
+  const plannedRouteObjectIds = useMemo(() => {
+    const ids = new Set(selectedRouteObjectIds);
+
+    for (const stop of plannedRoute?.draft.stops ?? []) {
+      ids.add(stop.objectId);
+    }
+
+    return ids;
+  }, [plannedRoute, selectedRouteObjectIds]);
+  const plannedRoutePoints = plannedRoute?.path.points ?? [];
 
   useEffect(() => {
     onActiveChange?.(isActive);
@@ -420,6 +477,128 @@ export function ExpeditionView({
     [scanObjects, scannerRadiusM, t],
   );
 
+  const fetchRoutedPath = useCallback(
+    async (draft: PlannedRouteDraft): Promise<RoutedPath> => {
+      if (draft.waypointPositions.length < 2) {
+        return createApproximateRoutedPath(draft.waypointPositions);
+      }
+
+      try {
+        const response = await fetch("/api/route-plan", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ waypoints: draft.waypointPositions }),
+        });
+
+        if (!response.ok) {
+          return createApproximateRoutedPath(draft.waypointPositions);
+        }
+
+        const data = (await response.json()) as RoutedPath;
+
+        if (
+          !Array.isArray(data.points) ||
+          data.points.length < 2 ||
+          typeof data.distanceM !== "number" ||
+          typeof data.durationSeconds !== "number"
+        ) {
+          return createApproximateRoutedPath(draft.waypointPositions);
+        }
+
+        return data;
+      } catch {
+        return createApproximateRoutedPath(draft.waypointPositions);
+      }
+    },
+    [],
+  );
+
+  const planRoute = useCallback(
+    async (draft: PlannedRouteDraft) => {
+      if (draft.stops.length === 0) {
+        setRoutePlanError(t("routePlanner.noObjects"));
+        setPlannedRoute(null);
+        return;
+      }
+
+      setRoutePlanning(true);
+      setRoutePlanError(null);
+
+      try {
+        const path = await fetchRoutedPath(draft);
+        setPlannedRoute({ draft, path });
+      } catch {
+        setRoutePlanError(t("routePlanner.error"));
+      } finally {
+        setRoutePlanning(false);
+      }
+    },
+    [fetchRoutedPath, t],
+  );
+
+  const suggestRoute = useCallback(async () => {
+    if (!current) {
+      setRoutePlanError(t("expedition.needPosition"));
+      return;
+    }
+
+    if (mapObjects.length === 0) {
+      setRoutePlanError(t(scanActive ? "routePlanner.noObjects" : "routePlanner.scanFirst"));
+      return;
+    }
+
+    const draft = createSuggestedRouteDraft({
+      start: current,
+      objects: mapObjects,
+      focus: routeFocus,
+      targetDistanceM: routeTargetDistanceM,
+    });
+
+    await planRoute(draft);
+  }, [current, mapObjects, planRoute, routeFocus, routeTargetDistanceM, scanActive, t]);
+
+  const planSelectedRoute = useCallback(async () => {
+    if (!current) {
+      setRoutePlanError(t("expedition.needPosition"));
+      return;
+    }
+
+    const draft = createManualRouteDraft({
+      start: current,
+      objects: mapObjects,
+      selectedObjectIds: selectedRouteObjectIds,
+    });
+
+    await planRoute(draft);
+  }, [current, mapObjects, planRoute, selectedRouteObjectIds, t]);
+
+  const toggleRouteObject = useCallback(
+    (object: PlayerMapObject) => {
+      if (!manualRouteMode) return;
+
+      setRoutePlanError(null);
+      setPlannedRoute(null);
+      setSelectedRouteObjectIds((currentSelection) => {
+        const nextSelection = new Set(currentSelection);
+
+        if (nextSelection.has(object.id)) {
+          nextSelection.delete(object.id);
+        } else {
+          nextSelection.add(object.id);
+        }
+
+        return nextSelection;
+      });
+    },
+    [manualRouteMode],
+  );
+
+  const clearPlannedRoute = useCallback(() => {
+    setSelectedRouteObjectIds(new Set());
+    setPlannedRoute(null);
+    setRoutePlanError(null);
+  }, []);
+
   const scan = useCallback(async () => {
     if (!current) {
       setMessage(t("expedition.needPosition"));
@@ -602,6 +781,10 @@ export function ExpeditionView({
     setCurrentHaul({});
     setCurrentItemHaul({});
     setRoutePoints([]);
+    setSelectedRouteObjectIds(new Set());
+    setPlannedRoute(null);
+    setRoutePlanError(null);
+    setManualRouteMode(false);
     lastReadingRef.current = null;
     lastDisplayPositionRef.current = null;
     distanceRef.current = 0;
@@ -627,7 +810,9 @@ export function ExpeditionView({
               showStartRadius={false}
               scanRadiusM={scanActive ? scannerRadiusM : null}
               mapObjects={scanActive ? mapObjects : []}
+              selectedMapObjectIds={plannedRouteObjectIds}
               routePoints={routePoints}
+              plannedRoutePoints={plannedRoutePoints}
               centerLabel={t("expedition.centerMap")}
               centerControlClassName="bottom-44 right-4"
               onViewChange={saveViewedMapCenter}
@@ -983,9 +1168,12 @@ export function ExpeditionView({
           showStartRadius={false}
           scanRadiusM={scanActive ? scannerRadiusM : null}
           mapObjects={scanActive ? mapObjects : []}
+          selectedMapObjectIds={plannedRouteObjectIds}
           routePoints={lastResult?.routePoints ?? routePoints}
+          plannedRoutePoints={plannedRoutePoints}
           centerLabel={t("expedition.centerMap")}
           onViewChange={saveViewedMapCenter}
+          onMapObjectSelect={manualRouteMode ? toggleRouteObject : undefined}
           onDestinationSelect={() => undefined}
         />
       </div>
@@ -1073,6 +1261,184 @@ export function ExpeditionView({
             >
               {t("expedition.new")}
             </button>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-white/10 bg-[#18232d] p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 font-black text-white">
+            <Route aria-hidden="true" size={19} />
+            {t("routePlanner.title")}
+          </div>
+          {plannedRoute ? (
+            <button
+              type="button"
+              className="grid size-9 place-items-center rounded-md bg-[#22303b] text-white"
+              onClick={clearPlannedRoute}
+              aria-label={t("routePlanner.clear")}
+              title={t("routePlanner.clear")}
+            >
+              <X aria-hidden="true" size={18} />
+            </button>
+          ) : null}
+        </div>
+
+        <div className="mt-3 grid gap-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.12em] text-[#aeb9b6]">
+              {t("routePlanner.focus")}
+            </p>
+            <div className="mt-2 grid grid-cols-5 gap-2">
+              {routeFocusOptions.map((focus) => (
+                <button
+                  key={focus}
+                  type="button"
+                  className={`min-h-10 rounded-md px-2 text-sm font-black ${
+                    routeFocus === focus
+                      ? "bg-[#43d9ad] text-[#07110d]"
+                      : "bg-[#101820] text-[#d7e1dd]"
+                  }`}
+                  onClick={() => {
+                    setRouteFocus(focus);
+                    setRoutePlanError(null);
+                  }}
+                >
+                  {focus === "balanced"
+                    ? "*"
+                    : focus === "chest"
+                      ? "?"
+                      : RESOURCE_DEFINITIONS.find((resource) => resource.id === focus)
+                          ?.icon}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.12em] text-[#aeb9b6]">
+              {t("routePlanner.distance")}
+            </p>
+            <div className="mt-2 grid grid-cols-4 gap-2">
+              {routeDistanceOptionsM.map((distanceMOption) => (
+                <button
+                  key={distanceMOption}
+                  type="button"
+                  className={`min-h-10 rounded-md px-2 text-sm font-black ${
+                    routeTargetDistanceM === distanceMOption
+                      ? "bg-[#f5b84b] text-[#211505]"
+                      : "bg-[#101820] text-[#d7e1dd]"
+                  }`}
+                  onClick={() => {
+                    setRouteTargetDistanceM(distanceMOption);
+                    setRoutePlanError(null);
+                  }}
+                >
+                  {formatDistance(distanceMOption)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              className="flex min-h-12 items-center justify-center gap-2 rounded-md bg-[#315f36] px-3 font-black text-white disabled:cursor-wait disabled:opacity-60"
+              onClick={suggestRoute}
+              disabled={routePlanning || scanning}
+            >
+              <Sparkles aria-hidden="true" size={18} />
+              {t("routePlanner.suggest")}
+            </button>
+            <button
+              type="button"
+              className={`flex min-h-12 items-center justify-center gap-2 rounded-md px-3 font-black ${
+                manualRouteMode
+                  ? "bg-[#f5b84b] text-[#211505]"
+                  : "bg-[#22303b] text-white"
+              }`}
+              onClick={() => {
+                setManualRouteMode((enabled) => !enabled);
+                setRoutePlanError(null);
+              }}
+            >
+              <MousePointer2 aria-hidden="true" size={18} />
+              {t("routePlanner.manual")}
+            </button>
+          </div>
+
+          {manualRouteMode ? (
+            <div className="grid grid-cols-[1fr_auto] gap-2">
+              <div className="rounded-md bg-[#101820] px-3 py-3 text-sm font-black text-[#d7e1dd]">
+                {t("routePlanner.selected", { count: selectedRouteObjectIds.size })}
+              </div>
+              <button
+                type="button"
+                className="min-h-11 rounded-md bg-[#43d9ad] px-3 font-black text-[#07110d] disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={planSelectedRoute}
+                disabled={routePlanning || selectedRouteObjectIds.size === 0}
+              >
+                {t("routePlanner.planSelected")}
+              </button>
+            </div>
+          ) : null}
+
+          {plannedRoute ? (
+            <div className="grid gap-2 rounded-md bg-[#101820] p-3">
+              <div className="grid grid-cols-3 gap-2 text-sm">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.12em] text-[#aeb9b6]">
+                    {t("expedition.distance")}
+                  </p>
+                  <p className="mt-1 font-black text-white">
+                    {formatDistance(plannedRoute.path.distanceM)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.12em] text-[#aeb9b6]">
+                    {t("expedition.time")}
+                  </p>
+                  <p className="mt-1 font-black text-white">
+                    {formatRouteDuration(plannedRoute.path.durationSeconds)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.12em] text-[#aeb9b6]">
+                    {routeFocusLabel(language, routeFocus)}
+                  </p>
+                  <p className="mt-1 font-black text-white">
+                    {t("routePlanner.stops", { count: plannedRoute.draft.stops.length })}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <span className="rounded-full bg-[#22303b] px-3 py-1 text-xs font-black text-[#d7e1dd]">
+                  {plannedRoute.path.source === "osrm-foot"
+                    ? t("routePlanner.osrm")
+                    : t("routePlanner.approximate")}
+                </span>
+                {Object.entries(plannedRoute.draft.resourceHaul).map(
+                  ([resourceId, quantity]) => (
+                    <span
+                      key={resourceId}
+                      className="rounded-full bg-[#14342d] px-3 py-1 text-xs font-black text-[#d7fff0]"
+                    >
+                      +{quantity} {resourceName(language, resourceId)}
+                    </span>
+                  ),
+                )}
+                {plannedRoute.draft.chestCount > 0 ? (
+                  <span className="rounded-full bg-[#2b2414] px-3 py-1 text-xs font-black text-[#ffe5ad]">
+                    {plannedRoute.draft.chestCount} {t("routePlanner.chest")}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+
+          {routePlanError ? (
+            <p className="text-sm font-bold text-[#ffd6a1]">{routePlanError}</p>
           ) : null}
         </div>
       </div>

@@ -170,6 +170,15 @@ input {
   color: #ffe5ad;
 }
 
+.runhold-map-object-selected {
+  border-color: #f5b84b;
+  box-shadow:
+    0 0 0 5px rgba(16, 24, 32, 0.42),
+    0 0 0 9px rgba(245, 184, 75, 0.34),
+    0 10px 24px rgba(0, 0, 0, 0.42);
+  transform: scale(1.08);
+}
+
 @media (display-mode: standalone) {
   body {
     overscroll-behavior-y: contain;

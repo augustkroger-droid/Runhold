@@ -1,4 +1,4 @@
-const CACHE_NAME = "runhold-static-v4";
+const CACHE_NAME = "runhold-static-v5";
 const STATIC_ASSETS = [
   "/",
   "/offline.html",

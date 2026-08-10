@@ -179,6 +179,50 @@ input {
   transform: scale(1.08);
 }
 
+.runhold-map-object-cluster {
+  position: relative;
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 2px solid rgba(255, 229, 173, 0.95);
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 35% 25%, rgba(245, 184, 75, 0.55), transparent 34%),
+    linear-gradient(145deg, #14342d, #2b2414 58%, #101820);
+  box-shadow:
+    0 0 0 5px rgba(67, 217, 173, 0.12),
+    0 0 0 10px rgba(245, 184, 75, 0.12),
+    0 10px 26px rgba(0, 0, 0, 0.42);
+  color: #fff2ca;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.runhold-map-object-cluster-icons {
+  max-width: 28px;
+  overflow: hidden;
+  font-size: 12px;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.runhold-map-object-cluster-count {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  display: grid;
+  min-width: 20px;
+  height: 20px;
+  place-items: center;
+  border: 2px solid rgba(255, 255, 255, 0.94);
+  border-radius: 999px;
+  background: #101820;
+  color: #43d9ad;
+  font-size: 11px;
+  font-weight: 950;
+}
+
 @media (display-mode: standalone) {
   body {
     overscroll-behavior-y: contain;

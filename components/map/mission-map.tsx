@@ -17,6 +17,13 @@ import type { Coordinate } from "@/lib/game/gps/position";
 import type { PlayerMapObject } from "@/lib/game/state/map-objects";
 import { RESOURCE_DEFINITIONS } from "@/lib/game/definitions/resources";
 
+type MapObjectCluster = {
+  id: string;
+  objects: PlayerMapObject[];
+  position: Coordinate;
+  dominantLabels: string[];
+};
+
 const startIcon = L.divIcon({
   className: "",
   html: '<span class="runhold-marker runhold-marker-start"></span>',
@@ -51,6 +58,27 @@ function mapObjectIcon(object: PlayerMapObject, selected: boolean) {
     iconSize: [30, 30],
     iconAnchor: [15, 15],
   });
+}
+
+function mapObjectClusterIcon(cluster: MapObjectCluster) {
+  const labelText = cluster.dominantLabels.slice(0, 3).join("");
+
+  return L.divIcon({
+    className: "",
+    html: `<span class="runhold-map-object-cluster"><span class="runhold-map-object-cluster-icons">${labelText}</span><span class="runhold-map-object-cluster-count">${cluster.objects.length}</span></span>`,
+    iconSize: [42, 42],
+    iconAnchor: [21, 21],
+  });
+}
+
+function objectLabel(object: PlayerMapObject): string {
+  if (object.objectKind === "chest") return "?";
+
+  const resource = RESOURCE_DEFINITIONS.find(
+    (definition) => definition.id === object.resourceId,
+  );
+
+  return resource?.icon ?? "?";
 }
 
 function MapClickHandler({
@@ -137,6 +165,152 @@ function CenterControl({
     >
       <Crosshair aria-hidden="true" size={22} />
     </button>
+  );
+}
+
+function clusterGridSizePx(zoom: number): number | null {
+  if (zoom >= 17) return null;
+  if (zoom >= 15) return 70;
+  if (zoom >= 13) return 86;
+  if (zoom >= 11) return 104;
+  return 126;
+}
+
+function MapObjectMarkers({
+  mapObjects,
+  selectedMapObjectIds,
+  onMapObjectSelect,
+}: {
+  mapObjects: PlayerMapObject[];
+  selectedMapObjectIds?: ReadonlySet<string>;
+  onMapObjectSelect?: (object: PlayerMapObject) => void;
+}) {
+  const map = useMap();
+  const [zoom, setZoom] = useState(map.getZoom());
+
+  useMapEvents({
+    zoomend(event) {
+      setZoom(event.target.getZoom());
+    },
+  });
+
+  const { individualObjects, clusters } = useMemo(() => {
+    const gridSizePx = clusterGridSizePx(zoom);
+    const selectedObjects = mapObjects.filter((object) =>
+      selectedMapObjectIds?.has(object.id),
+    );
+    const selectedIds = new Set(selectedObjects.map((object) => object.id));
+
+    if (!gridSizePx) {
+      return {
+        individualObjects: mapObjects,
+        clusters: [] as MapObjectCluster[],
+      };
+    }
+
+    const grouped = new Map<
+      string,
+      {
+        objects: PlayerMapObject[];
+        latSum: number;
+        lngSum: number;
+      }
+    >();
+
+    for (const object of mapObjects) {
+      if (selectedIds.has(object.id)) continue;
+
+      const point = map.project([object.position.lat, object.position.lng], zoom);
+      const key = `${Math.floor(point.x / gridSizePx)}:${Math.floor(point.y / gridSizePx)}`;
+      const group = grouped.get(key);
+
+      if (group) {
+        group.objects.push(object);
+        group.latSum += object.position.lat;
+        group.lngSum += object.position.lng;
+      } else {
+        grouped.set(key, {
+          objects: [object],
+          latSum: object.position.lat,
+          lngSum: object.position.lng,
+        });
+      }
+    }
+
+    const nextIndividualObjects = [...selectedObjects];
+    const nextClusters: MapObjectCluster[] = [];
+
+    for (const [key, group] of grouped) {
+      if (group.objects.length === 1) {
+        nextIndividualObjects.push(group.objects[0]);
+        continue;
+      }
+
+      const labelCounts = new Map<string, number>();
+      for (const object of group.objects) {
+        const label = objectLabel(object);
+        labelCounts.set(label, (labelCounts.get(label) ?? 0) + 1);
+      }
+
+      nextClusters.push({
+        id: key,
+        objects: group.objects,
+        position: {
+          lat: group.latSum / group.objects.length,
+          lng: group.lngSum / group.objects.length,
+        },
+        dominantLabels: [...labelCounts.entries()]
+          .sort((first, second) => second[1] - first[1])
+          .map(([label]) => label),
+      });
+    }
+
+    return {
+      individualObjects: nextIndividualObjects,
+      clusters: nextClusters,
+    };
+  }, [map, mapObjects, selectedMapObjectIds, zoom]);
+
+  return (
+    <>
+      {clusters.map((cluster) => (
+        <Marker
+          key={`cluster-${cluster.id}`}
+          position={[cluster.position.lat, cluster.position.lng]}
+          icon={mapObjectClusterIcon(cluster)}
+          eventHandlers={{
+            click: () => {
+              const bounds = L.latLngBounds(
+                cluster.objects.map(
+                  (object) =>
+                    [object.position.lat, object.position.lng] as [number, number],
+                ),
+              );
+
+              map.fitBounds(bounds.pad(0.45), {
+                animate: true,
+                maxZoom: Math.max(16, zoom + 1),
+              });
+            },
+          }}
+        />
+      ))}
+
+      {individualObjects.map((object) => (
+        <Marker
+          key={object.id}
+          position={[object.position.lat, object.position.lng]}
+          icon={mapObjectIcon(object, Boolean(selectedMapObjectIds?.has(object.id)))}
+          eventHandlers={
+            onMapObjectSelect
+              ? {
+                  click: () => onMapObjectSelect(object),
+                }
+              : undefined
+          }
+        />
+      ))}
+    </>
   );
 }
 
@@ -232,20 +406,11 @@ export function MissionMap({
           pathOptions={{ color: "#f5b84b", fillColor: "#f5b84b", fillOpacity: 0.08 }}
         />
       ) : null}
-      {mapObjects.map((object) => (
-        <Marker
-          key={object.id}
-          position={[object.position.lat, object.position.lng]}
-          icon={mapObjectIcon(object, Boolean(selectedMapObjectIds?.has(object.id)))}
-          eventHandlers={
-            onMapObjectSelect
-              ? {
-                  click: () => onMapObjectSelect(object),
-                }
-              : undefined
-          }
-        />
-      ))}
+      <MapObjectMarkers
+        mapObjects={mapObjects}
+        selectedMapObjectIds={selectedMapObjectIds}
+        onMapObjectSelect={onMapObjectSelect}
+      />
       {plannedRouteLine.length > 1 ? (
         <>
           <Polyline

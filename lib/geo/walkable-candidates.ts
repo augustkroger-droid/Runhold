@@ -175,7 +175,7 @@ export function parseWalkablePaths(
   data: OverpassResponse,
   center: Coordinate,
   radiusM: number,
-  maxPaths = 90,
+  maxPaths = 260,
 ): WalkablePath[] {
   return (data.elements ?? [])
     .filter(

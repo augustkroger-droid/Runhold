@@ -106,7 +106,7 @@ async function fetchDirectWalkableCandidates({
   radiusM: number;
 }): Promise<WalkableCandidateResponse> {
   const queryRadiiM = Array.from(
-    new Set([Math.min(radiusM, 1200), Math.min(radiusM, 2000), radiusM]),
+    new Set([radiusM, Math.min(radiusM, 2000), Math.min(radiusM, 1200)]),
   ).filter((nextRadiusM) => nextRadiusM >= 250 && nextRadiusM <= radiusM);
 
   for (const queryRadiusM of queryRadiiM) {
@@ -270,7 +270,7 @@ export function useMapObjects() {
       );
       const nextWalkablePaths = mergeWalkablePaths(
         visibleCandidates.paths,
-        widerCandidates.paths,
+        [],
       );
       setWalkablePaths(nextWalkablePaths);
 

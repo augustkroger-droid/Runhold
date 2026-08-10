@@ -17,6 +17,7 @@ import {
   type PlayerMapObjectRow,
   mapPlayerMapObjectRows,
 } from "@/lib/game/state/map-objects";
+import { haversineDistanceMeters } from "@/lib/geo/haversine";
 import { getSupabaseClient } from "@/lib/supabase/client";
 
 type WalkableCandidateResponse = {
@@ -36,6 +37,17 @@ const directOverpassModes: readonly WalkableOverpassMode[] = [
   "strict",
   "public-road",
 ];
+const objectCacheMaxAgeMs = 60 * 60 * 1000;
+const heavyRefreshCooldownMs = 4 * 60 * 60 * 1000;
+
+type CachedMapObjects = {
+  userId: string;
+  center: Coordinate;
+  scanRadiusM: number;
+  cachedAt: number;
+  fullScannedAt: number;
+  objects: PlayerMapObject[];
+};
 
 function mapObjectErrorMessage(message: string): string {
   if (/MAP_OBJECT_NOT_FOUND/i.test(message)) {
@@ -69,6 +81,150 @@ function cleanWalkableCandidates(candidates: WalkableCandidate[]): WalkableCandi
 
 function cleanWalkablePaths(paths: WalkablePath[]): WalkablePath[] {
   return paths.filter((path) => path.points.length >= 2);
+}
+
+function mapObjectCacheKey(userId: string): string {
+  return `runhold.mapObjects.${userId}`;
+}
+
+function isValidCoordinate(
+  position: Partial<Coordinate> | null | undefined,
+): position is Coordinate {
+  if (!position) return false;
+
+  return (
+    typeof position.lat === "number" &&
+    typeof position.lng === "number" &&
+    Number.isFinite(position.lat) &&
+    Number.isFinite(position.lng) &&
+    Math.abs(position.lat) <= 90 &&
+    Math.abs(position.lng) <= 180
+  );
+}
+
+function recalculateObjectDistances({
+  objects,
+  center,
+  scanRadiusM,
+}: {
+  objects: PlayerMapObject[];
+  center: Coordinate;
+  scanRadiusM: number;
+}): PlayerMapObject[] {
+  return objects
+    .filter((object) => typeof object.id === "string" && isValidCoordinate(object.position))
+    .map((object) => ({
+      ...object,
+      distanceM: haversineDistanceMeters(center, object.position),
+    }))
+    .filter((object) => object.distanceM <= scanRadiusM)
+    .sort((first, second) => first.distanceM - second.distanceM)
+    .slice(0, 250);
+}
+
+function readMapObjectCache({
+  userId,
+  center,
+  scanRadiusM,
+}: {
+  userId: string;
+  center: Coordinate;
+  scanRadiusM: number;
+}): CachedMapObjects | null {
+  if (typeof window === "undefined") return null;
+
+  const stored = window.localStorage.getItem(mapObjectCacheKey(userId));
+  if (!stored) return null;
+
+  try {
+    const parsed = JSON.parse(stored) as Partial<CachedMapObjects>;
+    if (
+      parsed.userId !== userId ||
+      !isValidCoordinate(parsed.center) ||
+      !Array.isArray(parsed.objects) ||
+      typeof parsed.cachedAt !== "number" ||
+      Date.now() - parsed.cachedAt > objectCacheMaxAgeMs
+    ) {
+      return null;
+    }
+
+    const cachedRadiusM =
+      typeof parsed.scanRadiusM === "number" && Number.isFinite(parsed.scanRadiusM)
+        ? parsed.scanRadiusM
+        : scanRadiusM;
+    const centerDistanceM = haversineDistanceMeters(center, parsed.center);
+    if (centerDistanceM > Math.min(scanRadiusM, cachedRadiusM)) {
+      return null;
+    }
+
+    return {
+      userId,
+      center,
+      scanRadiusM,
+      cachedAt: parsed.cachedAt,
+      fullScannedAt:
+        typeof parsed.fullScannedAt === "number" && Number.isFinite(parsed.fullScannedAt)
+          ? parsed.fullScannedAt
+          : 0,
+      objects: recalculateObjectDistances({
+        objects: parsed.objects,
+        center,
+        scanRadiusM,
+      }),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeMapObjectCache({
+  userId,
+  center,
+  scanRadiusM,
+  objects,
+  fullScannedAt,
+}: {
+  userId: string;
+  center: Coordinate;
+  scanRadiusM: number;
+  objects: PlayerMapObject[];
+  fullScannedAt: number;
+}) {
+  if (typeof window === "undefined") return;
+
+  const cache: CachedMapObjects = {
+    userId,
+    center,
+    scanRadiusM,
+    cachedAt: Date.now(),
+    fullScannedAt,
+    objects: recalculateObjectDistances({ objects, center, scanRadiusM }),
+  };
+
+  window.localStorage.setItem(mapObjectCacheKey(userId), JSON.stringify(cache));
+}
+
+function removeCachedMapObject(userId: string, objectId: string) {
+  if (typeof window === "undefined") return;
+
+  const stored = window.localStorage.getItem(mapObjectCacheKey(userId));
+  if (!stored) return;
+
+  try {
+    const parsed = JSON.parse(stored) as CachedMapObjects;
+    if (parsed.userId !== userId || !Array.isArray(parsed.objects)) return;
+
+    window.localStorage.setItem(
+      mapObjectCacheKey(userId),
+      JSON.stringify({
+        ...parsed,
+        cachedAt: Date.now(),
+        objects: parsed.objects.filter((object) => object.id !== objectId),
+      }),
+    );
+  } catch {
+    window.localStorage.removeItem(mapObjectCacheKey(userId));
+  }
 }
 
 async function fetchDirectOverpassData(
@@ -258,7 +414,29 @@ function mergeWalkablePaths(
   return merged;
 }
 
-export function useMapObjects() {
+async function fetchExistingMapObjects({
+  center,
+  scanRadiusM,
+}: {
+  center: Coordinate;
+  scanRadiusM: number;
+}): Promise<PlayerMapObject[] | null> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.rpc("get_visible_player_map_objects", {
+    input_lat: center.lat,
+    input_lng: center.lng,
+    input_scan_radius_m: Math.round(scanRadiusM),
+  });
+
+  if (error) {
+    if (error.code === "PGRST202") return null;
+    throw new Error(error.message);
+  }
+
+  return mapPlayerMapObjectRows((data ?? []) as PlayerMapObjectRow[]);
+}
+
+export function useMapObjects(userId: string) {
   const [objects, setObjects] = useState<PlayerMapObject[]>([]);
   const [walkablePaths, setWalkablePaths] = useState<WalkablePath[]>([]);
   const [scanning, setScanning] = useState(false);
@@ -269,12 +447,65 @@ export function useMapObjects() {
     async ({
       center,
       scanRadiusM,
+      forceRefresh = false,
     }: {
       center: Coordinate;
       scanRadiusM: number;
+      forceRefresh?: boolean;
     }) => {
       setScanning(true);
       setError(null);
+
+      const cached = readMapObjectCache({ userId, center, scanRadiusM });
+      const cachedObjects = cached?.objects ?? [];
+      let existingObjects: PlayerMapObject[] | null = null;
+      let fullScannedAt = cached?.fullScannedAt ?? 0;
+
+      if (cachedObjects.length > 0) {
+        setObjects(cachedObjects);
+      }
+
+      try {
+        existingObjects = await fetchExistingMapObjects({ center, scanRadiusM });
+
+        if (existingObjects) {
+          setObjects(existingObjects);
+          writeMapObjectCache({
+            userId,
+            center,
+            scanRadiusM,
+            objects: existingObjects,
+            fullScannedAt,
+          });
+
+          const refreshIsRecent = Date.now() - fullScannedAt < heavyRefreshCooldownMs;
+
+          if (!forceRefresh && existingObjects.length > 0) {
+            setScanning(false);
+            return existingObjects;
+          }
+
+          if (!forceRefresh && refreshIsRecent) {
+            setScanning(false);
+            return existingObjects;
+          }
+        }
+      } catch (fastScanError) {
+        if (cachedObjects.length > 0 && !forceRefresh) {
+          setScanning(false);
+          return cachedObjects;
+        }
+
+        if (
+          fastScanError instanceof Error &&
+          /permission denied/i.test(fastScanError.message)
+        ) {
+          const message = mapObjectErrorMessage(fastScanError.message);
+          setError(message);
+          setScanning(false);
+          throw new Error(message);
+        }
+      }
 
       const supabase = getSupabaseClient();
       const visibleCandidates = await fetchWalkableCandidates({
@@ -305,6 +536,16 @@ export function useMapObjects() {
       setWalkablePaths(nextWalkablePaths);
 
       if (walkableCandidates.length === 0) {
+        if (existingObjects && existingObjects.length > 0) {
+          setScanning(false);
+          return existingObjects;
+        }
+
+        if (cachedObjects.length > 0) {
+          setScanning(false);
+          return cachedObjects;
+        }
+
         const message =
           "Inga säkra fyndplatser hittades i närheten. Testa att scanna igen om en stund.";
         setError(message);
@@ -334,6 +575,16 @@ export function useMapObjects() {
       }
 
       if (scanError) {
+        if (existingObjects && existingObjects.length > 0) {
+          setScanning(false);
+          return existingObjects;
+        }
+
+        if (cachedObjects.length > 0) {
+          setScanning(false);
+          return cachedObjects;
+        }
+
         const message = mapObjectErrorMessage(scanError.message);
         setError(message);
         setScanning(false);
@@ -341,11 +592,19 @@ export function useMapObjects() {
       }
 
       const nextObjects = mapPlayerMapObjectRows((data ?? []) as PlayerMapObjectRow[]);
+      fullScannedAt = Date.now();
       setObjects(nextObjects);
+      writeMapObjectCache({
+        userId,
+        center,
+        scanRadiusM,
+        objects: nextObjects,
+        fullScannedAt,
+      });
       setScanning(false);
       return nextObjects;
     },
-    [],
+    [userId],
   );
 
   const collectObject = useCallback(
@@ -396,6 +655,7 @@ export function useMapObjects() {
           }
         | null;
       setObjects((current) => current.filter((object) => object.id !== objectId));
+      removeCachedMapObject(userId, objectId);
       setCollecting(false);
       return {
         objectKind: row?.object_kind === "chest" ? "chest" : "resource",
@@ -405,7 +665,7 @@ export function useMapObjects() {
         itemQuantity: Number(row?.item_quantity) || 0,
       };
     },
-    [],
+    [userId],
   );
 
   return {

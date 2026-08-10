@@ -43,6 +43,7 @@ import { itemName, resourceName } from "@/lib/i18n";
 
 const DEFAULT_MAP_CENTER: Coordinate = { lat: 57.7815, lng: 14.1562 };
 const MAP_CENTER_STORAGE_KEY = "runhold.expedition.mapCenter";
+const AUTO_SCAN_INTERVAL_MS = 90_000;
 const routeDistanceOptionsM = [1000, 2000, 3000, 5000] as const;
 const routeFocusOptions: RouteFocus[] = ["balanced", "wood", "stone", "food", "chest"];
 
@@ -185,7 +186,7 @@ export function ExpeditionView({
     error: mapObjectError,
     scanObjects,
     collectObject,
-  } = useMapObjects();
+  } = useMapObjects(userId);
   const { unlockedTechIds } = usePlayerTech(userId);
   const [status, setStatus] = useState<"idle" | "locating" | "ready" | "active" | "done">(
     "idle",
@@ -445,13 +446,20 @@ export function ExpeditionView({
   }, [isActive, locate, status, visible]);
 
   const runScan = useCallback(
-    async (center: Coordinate, { silent = false }: { silent?: boolean } = {}) => {
+    async (
+      center: Coordinate,
+      {
+        silent = false,
+        forceRefresh = false,
+      }: { silent?: boolean; forceRefresh?: boolean } = {},
+    ) => {
       setScanActive(true);
 
       try {
         const scannedObjects = await scanObjects({
           center,
           scanRadiusM: scannerRadiusM,
+          forceRefresh,
         });
 
         if (!silent) {
@@ -605,7 +613,7 @@ export function ExpeditionView({
       return;
     }
 
-    await runScan(current, { silent: false }).catch(() => undefined);
+    await runScan(current, { silent: false, forceRefresh: true }).catch(() => undefined);
   }, [current, runScan, t]);
 
   useEffect(() => {
@@ -619,7 +627,7 @@ export function ExpeditionView({
       if (!current || autoScanInFlightRef.current) return;
 
       const now = Date.now();
-      if (now - lastAutoScanAtRef.current < 30_000) return;
+      if (now - lastAutoScanAtRef.current < AUTO_SCAN_INTERVAL_MS) return;
 
       autoScanInFlightRef.current = true;
       lastAutoScanAtRef.current = now;
@@ -638,7 +646,7 @@ export function ExpeditionView({
     void autoScan();
     const intervalId = window.setInterval(() => {
       void autoScan();
-    }, 30_000);
+    }, AUTO_SCAN_INTERVAL_MS);
 
     return () => {
       cancelled = true;

@@ -622,6 +622,7 @@ export function useMapObjects(userId: string) {
       quantity: number;
       itemId: string;
       itemQuantity: number;
+      xpAwarded: number;
     }> => {
       setCollecting(true);
       setError(null);
@@ -652,6 +653,7 @@ export function useMapObjects(userId: string) {
             quantity?: number;
             item_id?: string | null;
             item_quantity?: number;
+            xp_awarded?: number;
           }
         | null;
       setObjects((current) => current.filter((object) => object.id !== objectId));
@@ -663,6 +665,7 @@ export function useMapObjects(userId: string) {
         quantity: Number(row?.quantity) || 0,
         itemId: row?.item_id ?? "",
         itemQuantity: Number(row?.item_quantity) || 0,
+        xpAwarded: Number(row?.xp_awarded) || 0,
       };
     },
     [userId],

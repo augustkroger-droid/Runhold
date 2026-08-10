@@ -11,11 +11,13 @@ export const EXPEDITION_CONFIG = {
 
 export function calculateExpeditionXp({
   distanceM,
+  pickupXp = 0,
 }: {
   distanceM: number;
   durationSeconds: number;
+  pickupXp?: number;
 }): number {
-  return Math.floor(Math.max(0, distanceM) / 50);
+  return Math.floor(Math.max(0, distanceM) / 50) + Math.max(0, pickupXp);
 }
 
 export function calculateRouteDistanceMeters(

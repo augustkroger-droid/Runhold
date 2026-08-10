@@ -11,6 +11,16 @@ describe("expedition system", () => {
     expect(calculateExpeditionXp({ distanceM: 1000, durationSeconds: 360 })).toBe(20);
   });
 
+  it("adds pickup xp to traveled distance xp", () => {
+    expect(
+      calculateExpeditionXp({
+        distanceM: 500,
+        durationSeconds: 180,
+        pickupXp: 7,
+      }),
+    ).toBe(17);
+  });
+
   it("sums traveled route distance instead of start-to-finish distance", () => {
     const distanceM = calculateRouteDistanceMeters([
       { lat: 57.7815, lng: 14.1562 },

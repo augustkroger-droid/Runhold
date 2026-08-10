@@ -215,6 +215,7 @@ export function ExpeditionView({
   } | null>(null);
   const [currentHaul, setCurrentHaul] = useState<Record<string, number>>({});
   const [currentItemHaul, setCurrentItemHaul] = useState<Record<string, number>>({});
+  const [currentPickupXp, setCurrentPickupXp] = useState(0);
   const [routePoints, setRoutePoints] = useState<ExpeditionRoutePoint[]>([]);
   const [routeFocus, setRouteFocus] = useState<RouteFocus>("balanced");
   const [routeTargetDistanceM, setRouteTargetDistanceM] = useState<number>(2000);
@@ -249,8 +250,9 @@ export function ExpeditionView({
       calculateExpeditionXp({
         distanceM,
         durationSeconds,
+        pickupXp: currentPickupXp,
       }),
-    [distanceM, durationSeconds],
+    [currentPickupXp, distanceM, durationSeconds],
   );
   const currentPace = formatPace(distanceM, durationSeconds);
   const plannedRouteObjectIds = useMemo(() => {
@@ -353,6 +355,12 @@ export function ExpeditionView({
                 const pickedQuantity = collected.quantity || object.quantity;
                 const pickedItemId = collected.itemId;
                 const pickedItemQuantity = collected.itemQuantity;
+                const pickedXp = collected.xpAwarded;
+                const xpText = pickedXp > 0 ? ` (+${pickedXp} XP)` : "";
+
+                if (pickedXp > 0) {
+                  setCurrentPickupXp((current) => current + pickedXp);
+                }
 
                 if (pickedResourceId && pickedQuantity > 0) {
                   setCurrentHaul((current) => ({
@@ -361,7 +369,7 @@ export function ExpeditionView({
                       (current[pickedResourceId] ?? 0) + pickedQuantity,
                   }));
                   setMessage(
-                    `+${pickedQuantity} ${resourceName(language, pickedResourceId)}`,
+                    `+${pickedQuantity} ${resourceName(language, pickedResourceId)}${xpText}`,
                   );
                 }
 
@@ -371,7 +379,7 @@ export function ExpeditionView({
                     [pickedItemId]: (current[pickedItemId] ?? 0) + pickedItemQuantity,
                   }));
                   setMessage(
-                    `+${pickedItemQuantity} ${itemName(language, pickedItemId)}`,
+                    `+${pickedItemQuantity} ${itemName(language, pickedItemId)}${xpText}`,
                   );
                 }
               })
@@ -676,6 +684,7 @@ export function ExpeditionView({
       setDistanceM(0);
       setCurrentHaul({});
       setCurrentItemHaul({});
+      setCurrentPickupXp(0);
       setLastResult(null);
       setShowResultSummary(false);
       distanceRef.current = 0;
@@ -762,6 +771,7 @@ export function ExpeditionView({
       });
       setCurrentHaul({});
       setCurrentItemHaul({});
+      setCurrentPickupXp(0);
       setRoutePoints(result.expedition.routePoints);
       setShowResultSummary(true);
       onExpeditionFinished?.();
@@ -788,6 +798,7 @@ export function ExpeditionView({
     setLastResult(null);
     setCurrentHaul({});
     setCurrentItemHaul({});
+    setCurrentPickupXp(0);
     setRoutePoints([]);
     setSelectedRouteObjectIds(new Set());
     setPlannedRoute(null);

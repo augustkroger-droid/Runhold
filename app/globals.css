@@ -199,6 +199,36 @@ input {
   line-height: 1;
 }
 
+.runhold-map-object-cluster-wood {
+  border-color: rgba(215, 255, 240, 0.95);
+  background:
+    radial-gradient(circle at 35% 25%, rgba(67, 217, 173, 0.46), transparent 36%),
+    linear-gradient(145deg, #17341f, #14342d 62%, #101820);
+  box-shadow:
+    0 0 0 5px rgba(67, 217, 173, 0.14),
+    0 0 0 10px rgba(67, 217, 173, 0.08),
+    0 10px 26px rgba(0, 0, 0, 0.42);
+}
+
+.runhold-map-object-cluster-stone {
+  border-color: rgba(219, 231, 239, 0.95);
+  background:
+    radial-gradient(circle at 35% 25%, rgba(184, 197, 207, 0.42), transparent 36%),
+    linear-gradient(145deg, #29323b, #18232d 62%, #101820);
+  box-shadow:
+    0 0 0 5px rgba(184, 197, 207, 0.14),
+    0 0 0 10px rgba(184, 197, 207, 0.08),
+    0 10px 26px rgba(0, 0, 0, 0.42);
+}
+
+.runhold-map-object-cluster-food,
+.runhold-map-object-cluster-chest {
+  border-color: rgba(255, 229, 173, 0.95);
+  background:
+    radial-gradient(circle at 35% 25%, rgba(245, 184, 75, 0.55), transparent 34%),
+    linear-gradient(145deg, #3a2615, #2b2414 58%, #101820);
+}
+
 .runhold-map-object-cluster-icons {
   max-width: 28px;
   overflow: hidden;

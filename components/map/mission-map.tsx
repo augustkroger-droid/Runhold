@@ -21,7 +21,8 @@ type MapObjectCluster = {
   id: string;
   objects: PlayerMapObject[];
   position: Coordinate;
-  dominantLabels: string[];
+  markerType: string;
+  label: string;
 };
 
 const startIcon = L.divIcon({
@@ -61,11 +62,9 @@ function mapObjectIcon(object: PlayerMapObject, selected: boolean) {
 }
 
 function mapObjectClusterIcon(cluster: MapObjectCluster) {
-  const labelText = cluster.dominantLabels.slice(0, 3).join("");
-
   return L.divIcon({
     className: "",
-    html: `<span class="runhold-map-object-cluster"><span class="runhold-map-object-cluster-icons">${labelText}</span><span class="runhold-map-object-cluster-count">${cluster.objects.length}</span></span>`,
+    html: `<span class="runhold-map-object-cluster runhold-map-object-cluster-${cluster.markerType}"><span class="runhold-map-object-cluster-icons">${cluster.label}</span><span class="runhold-map-object-cluster-count">${cluster.objects.length}</span></span>`,
     iconSize: [42, 42],
     iconAnchor: [21, 21],
   });
@@ -79,6 +78,10 @@ function objectLabel(object: PlayerMapObject): string {
   );
 
   return resource?.icon ?? "?";
+}
+
+function objectMarkerType(object: PlayerMapObject): string {
+  return object.objectKind === "chest" ? "chest" : (object.resourceId ?? "unknown");
 }
 
 function MapClickHandler({
@@ -169,11 +172,10 @@ function CenterControl({
 }
 
 function clusterGridSizePx(zoom: number): number | null {
-  if (zoom >= 17) return null;
-  if (zoom >= 15) return 70;
-  if (zoom >= 13) return 86;
-  if (zoom >= 11) return 104;
-  return 126;
+  if (zoom >= 16) return null;
+  if (zoom >= 14) return 36;
+  if (zoom >= 12) return 42;
+  return 50;
 }
 
 function MapObjectMarkers({
@@ -221,7 +223,10 @@ function MapObjectMarkers({
       if (selectedIds.has(object.id)) continue;
 
       const point = map.project([object.position.lat, object.position.lng], zoom);
-      const key = `${Math.floor(point.x / gridSizePx)}:${Math.floor(point.y / gridSizePx)}`;
+      const markerType = objectMarkerType(object);
+      const key = `${markerType}:${Math.floor(point.x / gridSizePx)}:${Math.floor(
+        point.y / gridSizePx,
+      )}`;
       const group = grouped.get(key);
 
       if (group) {
@@ -246,22 +251,17 @@ function MapObjectMarkers({
         continue;
       }
 
-      const labelCounts = new Map<string, number>();
-      for (const object of group.objects) {
-        const label = objectLabel(object);
-        labelCounts.set(label, (labelCounts.get(label) ?? 0) + 1);
-      }
+      const firstObject = group.objects[0];
 
       nextClusters.push({
         id: key,
         objects: group.objects,
+        markerType: objectMarkerType(firstObject),
+        label: objectLabel(firstObject),
         position: {
           lat: group.latSum / group.objects.length,
           lng: group.lngSum / group.objects.length,
         },
-        dominantLabels: [...labelCounts.entries()]
-          .sort((first, second) => second[1] - first[1])
-          .map(([label]) => label),
       });
     }
 

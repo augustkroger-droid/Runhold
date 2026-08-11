@@ -172,10 +172,11 @@ function CenterControl({
 }
 
 function clusterGridSizePx(zoom: number): number | null {
-  if (zoom >= 16) return null;
-  if (zoom >= 14) return 36;
-  if (zoom >= 12) return 42;
-  return 50;
+  if (zoom >= 17) return null;
+  if (zoom >= 15) return 44;
+  if (zoom >= 13) return 56;
+  if (zoom >= 11) return 70;
+  return 86;
 }
 
 function MapObjectMarkers({
